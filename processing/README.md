@@ -14,3 +14,5 @@ you can require the packaged library like so:
 (ns application.core
   (:require cljsjs.processing))
 ```
+
+Uses externs provided by `quil/processing-js`, many thanks!
