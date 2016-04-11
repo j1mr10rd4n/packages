@@ -4,10 +4,10 @@
  :dependencies '[[cljsjs/boot-cljsjs "0.5.0"  :scope "test"]
                  [doo "0.1.8-SNAPSHOT" :scope "test"]
                  [crisptrutski/boot-cljs-test "0.2.3-SNAPSHOT" :scope "test"]
-                 [org.clojure/clojurescript "1.7.228"]
+                 [org.clojure/clojurescript "6.6.666"]
                  [org.clojure/core.async "0.2.374"]
                  [danlentz/clj-uuid "0.1.6"]
-                 [adzerk/boot-cljs "1.7.228-1" :scope "test"]]) 
+                 [adzerk/boot-cljs "1.7.228-2" :scope "test"]]) 
 
 (require '[cljsjs.boot-cljsjs.packaging :refer :all]
          '[boot.core :as boot]
@@ -56,7 +56,7 @@
               height (Integer/parseInt (dims 1))
               pixels (map #(Integer/parseInt (re-find #"\d+" %)) (str/split pixels-string #","))
               is-3d? (boolean (re-find #"size\(\s*\d+\s*\,\s*\d+\s*\,\s*(OPENGL|P3D)\s*\);" processing-code))
-              var-id (str "var_" ((str/split (str (uuid/v1)) #"-") 0))]
+              var-id (str "var" ((str/split (str (uuid/v1)) #"-") 0))]
           {:var-id var-id
            :test-file test-file
            :width width
@@ -157,13 +157,26 @@
 (defn add-run-ref-tests-ns! [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
         out-file (doto (io/file tmp-main out-main) io/make-parents)
-        ref-test-js-files-and-ids (fs-metadata fileset :ref-test-js-files-and-ids)
+        ref-test-js-files-and-ids (filter #(not (= "test-paths-and-ids" (:test-id %)))
+                                    (fs-metadata fileset :ref-test-js-files-and-ids))
         ns-spec `(~'ns ~suite-ns
                   (:require [run-ref-tests.run-tests :as ~'run-ref-tests]
+                            [goog.object :as ~'object]
                             [doo.runner :as ~'runner]
-                  ~@(mapv #(vector (symbol (:test-id %))) ref-test-js-files-and-ids)))
-        ;run-exp `(~'convert/go)] ; doo needs to have entry point set instead of "main"
-        run-exp `(do (~'runner/set-exit-point! (~'run-ref-tests/exit)) (~'runner/set-entry-point! (~'run-ref-tests/entry)))]
+                  ~@(mapv #(vector (symbol (str "prov." (:test-id %)))) 
+                          ref-test-js-files-and-ids)
+                  ))
+        run-exp `(do 
+                     ~@(map #(let [vr (symbol (:test-id %))
+                                   pvr (symbol (str "prov." vr))
+                                   f (str vr "_f")
+                                   x (symbol (str pvr "/" f))]
+                              `(object/set js/window ~f ~x) 
+                              )
+                            ref-test-js-files-and-ids)
+                     (println (object/getKeys js/window))
+                     (~'runner/set-exit-point! (~'run-ref-tests/exit))
+                     (~'runner/set-entry-point! (~'run-ref-tests/entry)))]
     (info "Writing %s...\n " out-main)
     (println 
         (->> [ns-spec run-exp]
@@ -211,19 +224,27 @@
         (next-handler @fileset')))))
 
 (defn- compiler-opts-run [fileset]
-  (let [ref-test-libs (mapv (fn [{:keys [file test-id]}] {:file (str/replace file #"\.pde\.js" ".js") :provides [test-id]}) 
+  (let [ref-test-libs (mapv (fn [{:keys [file test-id]}] {:file (str/replace file #"\.pde\.js" ".js") :provides [(str "prov." test-id)]}) 
                            (fs-metadata fileset :ref-test-js-files-and-ids))
-        foreign-libs (into ref-test-libs
-                           [{:file "deps-src/processing-js-1.4.16/processing.js" 
-                             :provides ["processing-js"]}
-                            {:file "deps-src/processing-js-1.4.16/test/ref/tests.js"
-                             :provides ["original-list-of-tests"]}
+        foreign-libs ;(into ref-test-libs
+                           [
+                            ;{:file "deps-src/processing-js-1.4.16/processing.js" 
+                             ;:provides ["processing-js"]}
+                            ;{:file "deps-src/processing-js-1.4.16/test/ref/tests.js"
+                             ;:provides ["original-list-of-tests"]}
                             {:file "run_ref_tests/test_functions.js"
-                             :provides ["test-functions"]}])]
+                             :provides ["test-functions"]}];)
+        libs (mapv #(str "prov/" (:test-id %) ".js" ) 
+                   (filter #(not (= "test-paths-and-ids" (:test-id %)))
+                                   (fs-metadata fileset :ref-test-js-files-and-ids))
+                    )]
     {:main "ref-tests.run-tests"
      ;:optimizations :none
      :optimizations :advanced
-     :foreign-libs foreign-libs}))
+     :foreign-libs foreign-libs
+     :libs libs
+     :verbose true
+     :externs ["resources/cljsjs/processing/common/processing.ext.js"]}))
 
 ; have to wrap cljs becuase the compiler-opts we want to pass won't be known
 ; until after the previous tasks have run
@@ -233,9 +254,11 @@
     (fn handler [fileset]
       (let [compiler-opts (compiler-opts-run fileset)
             cljs-handler (cljs :ids #{"run-ref-tests"}
+                               :optimizations :advanced
                                :compiler-options compiler-opts)
             fileset' (atom nil)
             dummy-handler (fn [compiled-fileset] (reset! fileset' compiled-fileset))]
+        (println "COMPILER OPTS:" compiler-opts)
         ((cljs-handler dummy-handler) fileset)
         (next-handler @fileset')))))
 
@@ -285,7 +308,14 @@
               dest-file (io/file dest-path)]
               (if (.isDirectory f)
                 (.mkdir dest-file)
-                (io/copy f dest-file)))))
+                (io/copy f dest-file))))
+          
+          ; copy the processing js file too - we don't want to include this in the cljs compilation
+          (io/copy (io/file "deps-src/processing-js-1.4.16/processing.min.js") (io/file (str exec-dir-path "/processing.min.js")))
+          
+          
+          )
+
         
         (let [dir (.getParentFile (java.io.File. path))
               js-env :phantom
@@ -306,7 +336,9 @@
          ref-tests-as-js (atom [])
          tmp-main        (boot/tmp-dir!)]
      (doseq [{file :file [test-id] :provides test-js :test-js pixels-string :pixels-string height :height width :width is-3d? :is-3d} ref-tests-data]
-       (let [js-file       (doto (io/file tmp-main (str/replace file #"\.pde\.js" ".js")) io/make-parents)
+       ;(let [js-file       (doto (io/file tmp-main (str/replace file #"(.*)\.pde\.js" "prov/$1.js")) io/make-parents)
+       (let [js-file       (doto (io/file tmp-main (str "prov/" test-id ".js")) io/make-parents)
+             my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "prov." test-id "." test-id "_f = $1"))
              var-declare   (str test-id " = {};")
              ; compiling pde->js creates IIFEs so need to wrap them in a function for later eval
              ;test-function (str test-id ".testFunction = function() { return " test-js ";};")
@@ -314,13 +346,15 @@
              test-function (str test-id ".testFunction = " test-js ";")
 
              ;test-function (str test-id ".testFunction = function() { return ( function(x) { console.log('MIAOW'); } ) };")
-             pixels (str test-id ".pixels = [" pixels-string "];")
+             ;pixels (str test-id ".pixels = [" pixels-string "];")
              height (str test-id ".height = " height ";")
              width (str test-id ".width = " width ";")
              is-3d? (str test-id ".is3D = " is-3d? ";")]
+         (println "***")
+         (println my-fn)
          (swap! ref-tests-as-js conj {:file file :test-id test-id})
          (spit js-file
-               (str/join "\n" [var-declare test-function pixels height width is-3d?]))))
+               (str/join "\n" [(str "goog.provide('prov." test-id "');") my-fn]))))
 
      ; write a js dictionary of test var ids against paths
      (let [test-paths-and-ids (str/join ", " 
