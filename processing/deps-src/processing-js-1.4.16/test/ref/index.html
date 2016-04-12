@@ -572,6 +572,23 @@
         if(loc.indexOf("autorun=true") !== -1) {
           runTests(selectedTests);
         }
+
+        var console = {
+          log: function(msg) {
+            window.opener.console.log(msg);
+          },
+          error: function(msg) {
+            window.opener.console.error(msg);
+          }
+        };
+
+        window.onload = function() {
+          console.log("LOADED");
+        }
+
+        window.onerror = function(message, source, lineno, colno, error) {
+          console.error(message); 
+        };
       }, false);
     </script>
 
