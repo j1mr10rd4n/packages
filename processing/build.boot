@@ -4,7 +4,7 @@
  :dependencies '[[cljsjs/boot-cljsjs "0.5.0"  :scope "test"]
                  [doo "0.1.8-SNAPSHOT" :scope "test"]
                  [crisptrutski/boot-cljs-test "0.2.3-SNAPSHOT" :scope "test"]
-                 [org.clojure/clojurescript "6.6.666"]
+                 [org.clojure/clojurescript "1.7.228"]
                  [org.clojure/core.async "0.2.374"]
                  [danlentz/clj-uuid "0.1.6"]
                  [adzerk/boot-cljs "1.7.228-2" :scope "test"]]) 
