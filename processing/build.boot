@@ -205,8 +205,7 @@
   (let [foreign-libs (merge (fs-metadata fileset :test-pde-js-filenames-provides)
                             {:file "deps-src/processing-js-1.4.16/processing.js" 
                                  :provides ["processing-js"]})]
-    {:main "ref-tests.compile-pde"
-     :optimizations :none
+    {:optimizations :none
      :foreign-libs foreign-libs}))
 
 ; have to wrap cljs becuase the compiler-opts we want to pass won't be known
