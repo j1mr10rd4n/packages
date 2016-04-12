@@ -43,9 +43,8 @@
    (sift :include #{#"^cljsjs"})
    (deps-cljs :name "cljsjs.processing")))
 
-(defn- parse-test-pde [file]
-  (let [test-file (:path file)
-        content (-> file boot/tmp-file slurp)]
+(defn- parse-test-pde [{:keys [filename path]}]
+  (let [content (slurp path)]
     (if-let [matches (re-find #"(?s)^//\[([^\]]+)\]([^\n]+)\n(.*)" content)]
       (if (= 4 (count matches))
         (let [dimensions (matches 1)
@@ -58,7 +57,7 @@
               is-3d? (boolean (re-find #"size\(\s*\d+\s*\,\s*\d+\s*\,\s*(OPENGL|P3D)\s*\);" processing-code))
               var-id (str "var" ((str/split (str (uuid/v1)) #"-") 0))]
           {:var-id var-id
-           :test-file test-file
+           :test-file filename
            :width width
            :height height
            :pixels-string pixels-string
@@ -85,15 +84,29 @@
   ([fileset] 
     (fs-metadata fileset identity)))
 
+
+
+
+
+(defn- read-ref-tests-list []
+  (let [ref-tests-path "deps-src/processing-js-1.4.16/test/ref"
+        ref-test-list-path (str ref-tests-path "/tests.js") 
+        ref-tests (atom [])]
+    (with-open [rdr (io/reader ref-test-list-path)]
+      (doseq [line (line-seq rdr)]
+        (if-let [[_ ref-test-filename] (re-find #"path: \"(.*?)\"" line)]
+          (swap! ref-tests conj {:filename ref-test-filename 
+                                 :path (str ref-tests-path "/" ref-test-filename)}))))
+    @ref-tests))
+
+
+
 (deftask extract-ref-test-data []
   (set-env! :resource-paths #{"deps-src/processing-js-1.4.16/test/ref/"})
 
     (boot/with-pre-wrap fileset
-      ; remove the resource pdes
-      (let [test-pde-files (->> (boot/user-files fileset)
-                                (boot/by-ext '[".pde"])
-                                (boot/not-by-re '[#"^resource\spde/"]))
-            test-pde-file-data (map parse-test-pde test-pde-files)
+      (let [ref-tests (read-ref-tests-list)
+            test-pde-file-data (map parse-test-pde ref-tests)
             tmp-dir (boot/tmp-dir!)
             test-pde-js-files (atom [])]
         (boot/empty-dir! tmp-dir)
@@ -143,7 +156,7 @@
         tmp-main (boot/tmp-dir!)]
     (boot/with-pre-wrap fileset
       (boot/empty-dir! tmp-main)
-      (info "Writingz %s...\n" (str out-id ".cljs.edn"))
+      (info "Writing %s...\n" (str out-id ".cljs.edn"))
       (println (pr-str {:require [suite-ns]}))
       (spit (doto (io/file tmp-main (str out-id ".cljs.edn")) io/make-parents)
             (pr-str {:require [suite-ns]}))
