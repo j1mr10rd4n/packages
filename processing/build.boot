@@ -173,9 +173,10 @@
         ref-test-js-files-and-ids (filter #(not (= "test-paths-and-ids" (:test-id %)))
                                     (fs-metadata fileset :ref-test-js-files-and-ids))
         ns-spec `(~'ns ~suite-ns
-                  (:require [run-ref-tests.run-tests :as ~'run-ref-tests]
+                  (:require [run-ref-tests.launcher :as ~'launcher]
                             [goog.object :as ~'object]
                             [doo.runner :as ~'runner]
+                            [test-paths-and-vars]
                   ~@(mapv #(vector (symbol (str "prov." (:test-id %)))) 
                           ref-test-js-files-and-ids)
                   ))
@@ -188,8 +189,8 @@
                               )
                             ref-test-js-files-and-ids)
                      (println (object/getKeys js/window))
-                     (~'runner/set-exit-point! (~'run-ref-tests/exit))
-                     (~'runner/set-entry-point! (~'run-ref-tests/entry)))]
+                     (~'runner/set-exit-point! (~'launcher/exit))
+                     (~'runner/set-entry-point! (~'launcher/entry)))]
     (info "Writing %s...\n " out-main)
     (println 
         (->> [ns-spec run-exp]
@@ -244,8 +245,11 @@
                              ;:provides ["processing-js"]}
                             ;{:file "deps-src/processing-js-1.4.16/test/ref/tests.js"
                              ;:provides ["original-list-of-tests"]}
-                            {:file "run_ref_tests/test_functions.js"
-                             :provides ["test-functions"]}];)
+                            ;{:file "run_ref_tests/test_functions.js"
+                             ;:provides ["test-functions"]}
+                             {:file "test-paths-and-ids.js"
+                              :provides ["test-paths-and-vars"]}                           
+                            ];)
         libs (mapv #(str "prov/" (:test-id %) ".js" ) 
                    (filter #(not (= "test-paths-and-ids" (:test-id %)))
                                    (fs-metadata fileset :ref-test-js-files-and-ids))
@@ -299,44 +303,97 @@
              (swap! compiled-to-collect conj merged)))
         (fs-metadata fileset :test-pde-js-filenames-provides @compiled-to-collect))))))
 
+
+(defn- copy-dir-contents [ref-tests-dir-path output-dir-path]
+  (doseq [f (filter #(not (= (.getPath %) 
+                             ref-tests-dir-path)) 
+                    (file-seq (java.io.File. ref-tests-dir-path)))]
+    (let [source-path (.getPath f)
+          dest-path (str/replace source-path (re-pattern ref-tests-dir-path) output-dir-path)
+          dest-file (io/file dest-path)]
+      (if (.isDirectory f)
+        (.mkdir dest-file)
+        (io/copy f dest-file)))))
+
+
+
+
+(def epsilon-overrides { "arc-fill-crisp.pde"           0.097 
+                         "crisp-line.pde"               0.075
+                         "crisp-horizontal-lines.pde"   0.205 
+                         "crisp-vertical-lines.pde"     0.205 
+                         "rounded-rect.pde"             0.064 
+                         "color-wheel.pde"              0.077 
+                         "conway.pde"                   0.523 
+                         "flocking.pde"                 0.266 
+                         "koch.pde"                     0.064 
+                         "noise-wave.pde"               0.736 
+                         "noise1d.pde"                  0.488 
+                         "noise2d.pde"                  0.262 
+                         "noise3d.pde"                  0.242 
+                         "spore1.pde"                   0.401 
+                         "string-codepointat.pde"       0.212 
+                         "text-boxed-left-top.pde"      0.196 
+                         "text-boxed-left-bottom.pde"   0.196 
+                         "text-boxed-center-top.pde"    0.205 
+                         "text-boxed-center-center.pde" 0.208 
+                         "text-boxed-center-bottom.pde" 0.205 
+                         "text-boxed-vcenter.pde"       0.174 
+                         "multiple-constructors.pde"    0.064 
+                         "text-font-fromfile.pde"       0.224 })
+
+
+
+
 (deftask run-compiled-ref-tests []
   (boot/with-pre-wrap fileset
-    (if-let [path (some->> (boot/output-files fileset)
-                           (filter (comp #{"run-ref-tests.js"} :path))
-                           (sort-by :time)
-                           (last)
-                           (boot/tmp-file)
-                           (.getPath))]
-      (do
-        ; have to copy the pde and test resources into the folder that the phantom page can find
-        (let [exec-dir (.getParentFile (java.io.File. path))
-              exec-dir-path (.getPath exec-dir)
-              ref-tests-dir-path "deps-src/processing-js-1.4.16/test/ref"
-              ref-tests-dir (java.io.File. ref-tests-dir-path)]
-          ;file-seq includes the directory itself so filter that out
-          (doseq [f (filter #(not (= (.getPath %) ref-tests-dir-path)) (file-seq ref-tests-dir))]
-            (let [source-path (.getPath f)
-              dest-path (str/replace source-path (re-pattern ref-tests-dir-path) exec-dir-path)
-              dest-file (io/file dest-path)]
-              (if (.isDirectory f)
-                (.mkdir dest-file)
-                (io/copy f dest-file))))
-          
-          ; copy the processing js file too - we don't want to include this in the cljs compilation
-          (io/copy (io/file "deps-src/processing-js-1.4.16/processing.min.js") (io/file (str exec-dir-path "/processing.min.js")))
-          
-          
-          )
+    (if-let [js-output-file-path (some->> (boot/output-files fileset)
+                                          (filter (comp #{"run-ref-tests.js"} :path))
+                                          (sort-by :time)
+                                          (last)
+                                          (boot/tmp-file)
+                                          (.getPath))]
+      (let [exec-dir (.getParentFile (java.io.File. js-output-file-path))
+            exec-dir-path (.getPath exec-dir)
+            ref-tests-dir-path "deps-src/processing-js-1.4.16/test/ref"
+            ref-tests-dir (java.io.File. ref-tests-dir-path)]
+        ; copy the ref test index and resources into the folder that the phantom page can find
+        (copy-dir-contents "deps-src/processing-js-1.4.16/test/ref" exec-dir-path)
 
-        
-        (let [dir (.getParentFile (java.io.File. path))
-              js-env :phantom
+        ; copy the processing js file - this is kept as an external library
+        (io/copy (io/file "deps-src/processing-js-1.4.16/processing.min.js") (io/file (str exec-dir-path "/processing.min.js")))
+
+        ; munge the processing link in index.html
+        (let [ref-test-index-path (str exec-dir-path "/index.html")
+              ref-test-index-content (slurp (io/file ref-test-index-path))
+              munged-content (str/replace ref-test-index-content #"src=\"\/processing\.min\.js\"" "src=\"processing.min.js\"")]
+          (spit ref-test-index-path munged-content))
+
+
+        ; munge the epsilonOverrides in the tests
+        (let [ref-test-list-path (str exec-dir-path "/tests.js")
+              munged-lines (atom [])]
+          (with-open [rdr (io/reader ref-test-list-path)]
+            (doseq [line (line-seq rdr)]
+              (if-let [[_ path] (re-find #"path: \"(.*?)\"" line)]
+                (if-let [epsilon-override (epsilon-overrides path)]
+                  (swap! munged-lines conj (str/replace line 
+                                                        #"\](?:,\sepsilonOverride:\s\d\.\d+)?\s}" 
+                                                        (str "], epsilonOverride: " epsilon-override " }")))
+                  (swap! munged-lines conj line))
+                  (swap! munged-lines conj line))))
+          (spit ref-test-list-path (str/join "\n" @munged-lines)))
+
+        ; go!
+        (let [js-env :phantom
               ;js-env :firefox
               cljs (merge (compiler-opts-run fileset)
-                          {:output-to path,
-                           :output-dir (str/replace path #".js\z" ".out")})
-              opts {:exec-dir dir :debug true}
-              {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)])))
+                          {:output-to js-output-file-path,
+                           :output-dir (str/replace js-output-file-path #".js\z" ".out")})
+              opts {:exec-dir exec-dir :debug true}
+              {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)])
+          
+          ))
 
       fileset))
 
