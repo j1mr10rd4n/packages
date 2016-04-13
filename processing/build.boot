@@ -1,5 +1,5 @@
 (set-env!
- :source-paths #{"src"}
+ :source-paths #{"test"}
  ;:resource-paths #{"resources"}
  :dependencies '[[cljsjs/boot-cljsjs "0.5.0"  :scope "test"]
                  [doo "0.1.8-SNAPSHOT" :scope "test"]
@@ -12,14 +12,12 @@
 (require '[cljsjs.boot-cljsjs.packaging :refer :all]
          '[boot.core :as boot]
          '[doo.core :as doo]
-         '[crisptrutski.boot-cljs-test :refer [prep-cljs-tests test-cljs exit!]]
          '[crisptrutski.boot-cljs-test.utils :as cljs-test-utils]
          '[clojure.string :as str]
          '[clojure.java.io :as io]
          '[clj-uuid :as uuid]
          '[adzerk.boot-cljs :refer [cljs]]
-         '[prepare-ref-tests.util :as util]
-         )
+         '[prepare-ref-tests.util :as util])
 
 (def +lib-version+ "1.4.16")
 (def +version+ (str +lib-version+ "-0"))
@@ -141,18 +139,9 @@
 (defn- compiler-opts-run [fileset]
   (let [ref-test-libs (mapv (fn [{:keys [file test-id]}] {:file (str/replace file #"\.pde\.js" ".js") :provides [(str "prov." test-id)]}) 
                            (fs-metadata fileset :ref-test-js-files-and-ids))
-        foreign-libs ;(into ref-test-libs
-                           [
-                            ;{:file "deps-src/processing-js-1.4.16/processing.js" 
-                             ;:provides ["processing-js"]}
-                            ;{:file "deps-src/processing-js-1.4.16/test/ref/tests.js"
-                             ;:provides ["original-list-of-tests"]}
-                            ;{:file "run_ref_tests/test_functions.js"
-                             ;:provides ["test-functions"]}
-                             {:file "test-paths-and-ids.js"
-                              :provides ["test-paths-and-vars"]}                           
-                            ];)
-        libs (mapv #(str "prov/" (:test-id %) ".js" ) 
+        foreign-libs [{:file "test-paths-and-ids.js"
+                       :provides ["test-paths-and-vars"]}]
+        libs (mapv #(str "prov/" (:test-id %) ".js" )
                    (filter #(not (= "test-paths-and-ids" (:test-id %)))
                                    (fs-metadata fileset :ref-test-js-files-and-ids))
                     )]
@@ -336,13 +325,6 @@
   (boot/with-pre-wrap fileset
     (write-test-js-files fileset))) 
 
-(deftask doit []
-  (comp
-    (extract-ref-test-data)
-    (run-compile-pde-scripts)
-    (prep-compiled-test-sources)
-    (show "-f")
-    ))
 
 (deftask doit-wrapped []
   (merge-env! :source-paths #{"test"})
@@ -365,46 +347,4 @@
     (wrap-cljs-run)
     (run-compiled-ref-tests)
   ))
-
-
-(deftask wrap-test-cljs []
-  (merge-env! :source-paths #{"test"})
-  (fn middleware [next-handler]
-    (fn handler [fileset]
-      (let [foreign-libs (fs-metadata fileset :test-pde-js-filenames-provides)
-            compiler-opts (compiler-opts-prep)
-            test-cljs-handler (test-cljs :js-env :phantom
-                                         :namespaces #{"prepare-ref-tests*"}
-                                         ;:suite-ns 'convert-it-with-doo
-                                         ;:optimizations :none
-                                         :cljs-opts {:foreign-libs foreign-libs}
-                                         :update-fs? true)
-            fileset' (atom nil)
-            dummy-handler (fn [compiled-fileset] (reset! fileset' compiled-fileset))]
-        ((test-cljs-handler dummy-handler) fileset)
-        (next-handler @fileset')))))
-
-(deftask dooit []
-  (comp
-    (extract-ref-test-data)
-    (wrap-test-cljs)
-    (show "-f")))
-
-(deftask test-externs []
-  (merge-env! :source-paths #{"src" "test"})
-  (task-options!
-    test-cljs (fn [{{foreign-libs :foreign-libs} :cljs-opts :as options}]
-                    (let [foreign-libs-arr (if foreign-libs foreign-libs [])
-                          foreign-libs' (conj foreign-libs-arr 
-                                              {:file "deps-src/processing-js-1.4.16/processing.js" :provides ["processing-js"]})]
-                    (merge options {:cljs-opts {:foreign-libs foreign-libs'}}))))
-  ;(task-options! test-cljs {:js-env :phantom :cljs-opts { :foreign-libs [{:file "deps-src/processing-js-1.4.16/processing.js" 
-                                                                          ;:provides ["processing-js"]}]}})
-  (comp
-  ;(prep-cljs-tests)
-  (test-cljs)
-  ;(with-pre-wrap fileset
-    ;(println (boot/input-files fileset))
-    ;fileset)
-  (show "-f")))
 
