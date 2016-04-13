@@ -52,6 +52,50 @@
   ([fileset] 
     (fs-metadata fileset identity)))
 
+(defn- copy-dir-contents [ref-tests-dir-path output-dir-path]
+  (doseq [f (filter #(not (= (.getPath %) 
+                             ref-tests-dir-path)) 
+                    (file-seq (java.io.File. ref-tests-dir-path)))]
+    (let [source-path (.getPath f)
+          dest-path (str/replace source-path (re-pattern ref-tests-dir-path) output-dir-path)
+          dest-file (io/file dest-path)]
+      (if (.isDirectory f)
+        (.mkdir dest-file)
+        (io/copy f dest-file)))))
+
+(defn- compiler-opts-for-convert []
+    {:optimizations :none
+     :verbose true
+     :foreign-libs [{:file "deps-src/processing-js-1.4.16/processing.js" 
+                     :provides ["processing-js"]}]})
+
+(deftask convert-tests-pde-to-js []
+  (boot/with-pre-wrap fileset
+    (if-let [path (some->> (boot/output-files fileset)
+                           (filter (comp #{"prepare_ref_tests/convert_pde.js"} :path))
+                           (sort-by :time)
+                           (last)
+                           (boot/tmp-file)
+                           (.getPath))]
+      (do
+        ; copy the ref test index and resources into the folder that the phantom page can find
+        (copy-dir-contents "deps-src/processing-js-1.4.16/test/ref" (-> (io/file path) .getParentFile .getPath))
+
+        (let [dir (.getParentFile (java.io.File. path))
+              js-env :phantom
+              cljs (merge (compiler-opts-for-convert)
+                          {:output-to path,
+                           :output-dir (str/replace path #".js\z" ".out")})
+              opts {:exec-dir dir :debug true}
+              {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)]
+          (let [ascii-serialized-tests (util/unmarshal-from-string out)
+                compiled-tests (map (fn [{:keys [test-name processing-js-code]}] 
+                                      {:test-name test-name 
+                                       :test-js (util/deserialize-from-ascii processing-js-code)})
+                               ascii-serialized-tests)]
+          (fs-metadata fileset :test-pde-js-filenames-provides compiled-tests)))))))
+
+
 (defn add-run-ref-tests-ns! [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
         out-file (doto (io/file tmp-main out-main) io/make-parents)
@@ -100,12 +144,6 @@
       (add-run-ref-tests-ns! fileset tmp-main suite-ns)
       (-> fileset (boot/add-source tmp-main) boot/commit!))))
 
-(defn- compiler-opts-prep []
-    {:optimizations :none
-     :verbose true
-     :foreign-libs [{:file "deps-src/processing-js-1.4.16/processing.js" 
-                     :provides ["processing-js"]}]})
-
 
 (defn- compiler-opts-run [fileset]
   (let [ref-test-libs (mapv (fn [{:keys [file test-id]}] {:file (str/replace file #"\.pde\.js" ".js") :provides [(str "prov." test-id)]}) 
@@ -142,42 +180,6 @@
 
 
 
-(defn- copy-dir-contents [ref-tests-dir-path output-dir-path]
-  (doseq [f (filter #(not (= (.getPath %) 
-                             ref-tests-dir-path)) 
-                    (file-seq (java.io.File. ref-tests-dir-path)))]
-    (let [source-path (.getPath f)
-          dest-path (str/replace source-path (re-pattern ref-tests-dir-path) output-dir-path)
-          dest-file (io/file dest-path)]
-      (if (.isDirectory f)
-        (.mkdir dest-file)
-        (io/copy f dest-file)))))
-
-
-(deftask run-compile-pde-scripts []
-  (boot/with-pre-wrap fileset
-    (if-let [path (some->> (boot/output-files fileset)
-                           (filter (comp #{"prepare_ref_tests/convert_pde.js"} :path))
-                           (sort-by :time)
-                           (last)
-                           (boot/tmp-file)
-                           (.getPath))]
-      (do
-      ; copy the ref test index and resources into the folder that the phantom page can find
-      (copy-dir-contents "deps-src/processing-js-1.4.16/test/ref" (-> (io/file path) .getParentFile .getPath))
-
-      (let [dir (.getParentFile (java.io.File. path))
-            js-env :phantom
-            cljs (merge (compiler-opts-prep)
-                        {:output-to path,
-                         :output-dir (str/replace path #".js\z" ".out")})
-            opts {:exec-dir dir :debug true}
-            {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)]
-        (let [ascii-serialized-tests (util/unmarshal-from-string out)
-              compiled-tests (map (fn [{:keys [test-name processing-js-code]}] {:test-name test-name 
-                                                             :test-js (util/deserialize-from-ascii processing-js-code)})
-                             ascii-serialized-tests)]
-        (fs-metadata fileset :test-pde-js-filenames-provides compiled-tests)))))))
 
 
 (deftask run-compiled-ref-tests []
@@ -276,8 +278,8 @@
     (fn handler [fileset]
       (let [fileset-atom (atom fileset)
             wrapped-tasks (comp (cljs :ids #{"prepare_ref_tests/convert_pde"}
-                                      :compiler-options (compiler-opts-prep))
-                                (run-compile-pde-scripts))
+                                      :compiler-options (compiler-opts-for-convert))
+                                (convert-tests-pde-to-js))
             wrapping-handler (fn [fileset] (reset! fileset-atom (write-test-js-files fileset @fileset-atom)))]
         ((wrapped-tasks wrapping-handler) fileset)
         (next-handler @fileset-atom))))
