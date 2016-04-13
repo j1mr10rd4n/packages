@@ -43,37 +43,6 @@
    (sift :include #{#"^cljsjs"})
    (deps-cljs :name "cljsjs.processing")))
 
-(defn- parse-test-pde [{:keys [filename path]}]
-  (let [content (slurp path)]
-    (if-let [matches (re-find #"(?s)^//\[([^\]]+)\]([^\n]+)\n(.*)" content)]
-      (if (= 4 (count matches))
-        (let [dimensions (matches 1)
-              pixels-string (matches 2)
-              processing-code (matches 3)
-              dims (str/split dimensions #",")
-              width (Integer/parseInt (dims 0))
-              height (Integer/parseInt (dims 1))
-              pixels (map #(Integer/parseInt (re-find #"\d+" %)) (str/split pixels-string #","))
-              is-3d? (boolean (re-find #"size\(\s*\d+\s*\,\s*\d+\s*\,\s*(OPENGL|P3D)\s*\);" processing-code))
-              var-id (str "var" ((str/split (str (uuid/v1)) #"-") 0))]
-          {:var-id var-id
-           :test-file filename
-           :width width
-           :height height
-           :pixels-string pixels-string
-           :processing-code (util/serialize-to-ascii processing-code)
-           :is-3d is-3d?})))))
-
-(defn- map->jsobj [m]
-  (str "{"
-       (str/join ", "
-                 (map (fn [[key val]] (str (str/replace (name key) #"-" "_") ": " 
-                                      (if (instance? String val)
-                                        (str "\"" val "\"") 
-                                        val)))
-                      m))
-       "}"))
-
 (defn fs-metadata 
   ([fileset key value]
    (let [metadata (fs-metadata fileset)
@@ -83,9 +52,6 @@
     (-> fileset meta :metadata key))
   ([fileset] 
     (fs-metadata fileset identity)))
-
-
-
 
 
 (defn- read-ref-tests-list []
@@ -100,45 +66,29 @@
     @ref-tests))
 
 
-
 (deftask extract-ref-test-data []
   (set-env! :resource-paths #{"deps-src/processing-js-1.4.16/test/ref/"})
 
     (boot/with-pre-wrap fileset
       (let [ref-tests (read-ref-tests-list)
-            test-pde-file-data (map parse-test-pde ref-tests)
-            tmp-dir (boot/tmp-dir!)
-            test-pde-js-files (atom [])]
+            tmp-dir (boot/tmp-dir!)]
         (boot/empty-dir! tmp-dir)
-        (doseq [{:keys [var-id test-file pixels-string width height is-3d] :as ref-test} test-pde-file-data]
-          (let [filename (str/replace test-file #"\.pde$" ".pde.js")
-                js (str "var " var-id " = " (map->jsobj ref-test) ";")
-                foreign-libs-entry {:file filename :provides [var-id] :width width :height height :is-3d is-3d :pixels-string pixels-string}]
-            (swap! test-pde-js-files conj foreign-libs-entry)
-            (spit (io/file tmp-dir filename) js)))
-
-        (let [ref-test-var-ids (map #(str "'" (:var-id %) "'") test-pde-file-data)
+        (let [ref-test-var-ids (map #(str "'" (:filename %) "'") ref-tests)
               ref-test-js-arr (str "var ref_test_ids = [" (str/join ", " ref-test-var-ids) "]")]
-          (println "adding file:  tests_var_ids.js ")
-          (swap! test-pde-js-files conj {:file "tests_var_ids.js" :provides ["tests_var_ids"]})
           (spit (io/file tmp-dir "tests_var_ids.js") ref-test-js-arr))
-        
-        (-> (fs-metadata fileset
-                         :test-pde-js-filenames-provides
-                         @test-pde-js-files) 
+        (-> fileset 
             (boot/add-source tmp-dir) 
             boot/commit!))))
 
 (defn add-compile-pde-ns! [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
         out-file (doto (io/file tmp-main out-main) io/make-parents)
-        foreign-libs (fs-metadata fileset :test-pde-js-filenames-provides)
         ns-spec `(~'ns ~suite-ns
-                  (:require [prepare-ref-tests.convert-pde-to-js :as ~'convert]
-                            [doo.runner :as ~'runner]
-                  ~@(mapv #(vector (symbol (get-in % [:provides 0]))) foreign-libs)))
-        ;run-exp `(~'convert/go)] ; doo needs to have entry point set instead of "main"
-        run-exp `(do (~'runner/set-exit-point! (~'convert/exit)) (~'runner/set-entry-point! (~'convert/entry)))]
+                   (:require [prepare-ref-tests.convert-pde-to-js :as ~'convert]
+                             [doo.runner :as ~'runner]
+                             [~'tests_var_ids]))
+        run-exp `(do (~'runner/set-exit-point! (~'convert/exit)) 
+                     (~'runner/set-entry-point! (~'convert/entry)))]
     (info "Writing %s...\n " out-main)
     (println 
         (->> [ns-spec run-exp]
@@ -216,9 +166,10 @@
       (-> fileset (boot/add-source tmp-main) boot/commit!))))
 
 (defn- compiler-opts-prep [fileset]
-  (let [foreign-libs (merge (fs-metadata fileset :test-pde-js-filenames-provides)
-                            {:file "deps-src/processing-js-1.4.16/processing.js" 
-                                 :provides ["processing-js"]})]
+  (let [foreign-libs [{:file "tests_var_ids.js" 
+                       :provides ["tests_var_ids"]}
+                      {:file "deps-src/processing-js-1.4.16/processing.js" 
+                       :provides ["processing-js"]}]]
     {:optimizations :none
      :foreign-libs foreign-libs}))
 
