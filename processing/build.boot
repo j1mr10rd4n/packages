@@ -51,34 +51,6 @@
   ([fileset] 
     (fs-metadata fileset identity)))
 
-
-(defn- read-ref-tests-list []
-  (let [ref-tests-path "deps-src/processing-js-1.4.16/test/ref"
-        ref-test-list-path (str ref-tests-path "/tests.js") 
-        ref-tests (atom [])]
-    (with-open [rdr (io/reader ref-test-list-path)]
-      (doseq [line (line-seq rdr)]
-        (if-let [[_ ref-test-filename] (re-find #"path: \"(.*?)\"" line)]
-          (swap! ref-tests conj {:filename ref-test-filename 
-                                 :path (str ref-tests-path "/" ref-test-filename)}))))
-    @ref-tests))
-
-
-(deftask extract-ref-test-data []
-  (set-env! :resource-paths #{"deps-src/processing-js-1.4.16/test/ref/"})
-
-    (boot/with-pre-wrap fileset
-      (let [ref-tests (read-ref-tests-list)
-            tmp-dir (boot/tmp-dir!)]
-        (boot/empty-dir! tmp-dir)
-        (let [ref-test-var-ids (map #(str "'" (:filename %) "'") ref-tests)
-              ref-test-js-arr (str "var ref_test_ids = [" (str/join ", " ref-test-var-ids) "]")]
-          (spit (io/file tmp-dir "tests_var_ids.js") ref-test-js-arr))
-        (-> fileset 
-            (boot/add-source tmp-dir) 
-            boot/commit!))))
-
-
 (defn add-run-ref-tests-ns! [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
         out-file (doto (io/file tmp-main out-main) io/make-parents)
@@ -130,9 +102,7 @@
 (defn- compiler-opts-prep []
     {:optimizations :none
      :verbose true
-     :foreign-libs [{:file "tests_var_ids.js" 
-                     :provides ["tests_var_ids"]}
-                    {:file "deps-src/processing-js-1.4.16/processing.js" 
+     :foreign-libs [{:file "deps-src/processing-js-1.4.16/processing.js" 
                      :provides ["processing-js"]}]})
 
 
@@ -333,8 +303,7 @@
   (fn middleware [next-handler]
     (fn handler [fileset]
       (let [fileset-atom (atom fileset)
-            wrapped-tasks (comp (extract-ref-test-data)
-                                (cljs :ids #{"prepare_ref_tests/convert_pde"}
+            wrapped-tasks (comp (cljs :ids #{"prepare_ref_tests/convert_pde"}
                                       :compiler-options (compiler-opts-prep))
                                 (run-compile-pde-scripts))
             wrapping-handler (fn [fileset] (reset! fileset-atom (write-test-js-files fileset @fileset-atom)))]

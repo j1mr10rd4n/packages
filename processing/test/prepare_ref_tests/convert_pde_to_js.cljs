@@ -19,10 +19,12 @@
     (doseq [div (dom/getChildren compiled-tests-div)]
       (swap! ref-tests-js conj {:test-name (object/get div "id")
                                :processing-js-code (object/get div "innerText")})) 
-    (.callPhantom js/window (u/marshal-to-string @ref-tests-js)) ;outputs to console.log
+    ;outputs to console.log - hacky but alternative would be to set up an http
+    ;server to accept posts - doo doesn't give us access to phantom's file-io api
+    (.callPhantom js/window (u/marshal-to-string @ref-tests-js)) 
     (.exit! (object/get js/doo "runner") true)))
 
-(defn- convert-callback [test-file-name compiled-tests-div]
+(defn- convert-test-callback [test-file-name compiled-tests-div]
   (fn [e]
     (swap! test-count dec)
     (let [target (object/get e "target")
@@ -33,23 +35,38 @@
               result-div (dom/createDom "div" (clj->js {:id test-file-name}) compiled-test-function)]
           (dom/appendChild compiled-tests-div result-div))))
     (if (= 0 @test-count)
-      (collect-results-and-exit compiled-tests-div)
-    )))
+      (collect-results-and-exit compiled-tests-div))))
+
+(defn- absolute-uri [file-name]
+  (let [location (-> js/window (object/get "location") (object/get "href"))]
+    (str/replace location
+                 #"doo-index.html" 
+                 file-name)))
+
+(defn- convert-tests-callback [compiled-tests-div]
+  (fn [e]
+    (let [target (object/get e "target")
+          isSuccess (.isSuccess target)
+          text (.getResponseText target)]
+      (if (and isSuccess text)
+        (do
+          (js/eval text)
+          (let [ref-test-filenames (map #(:path %) 
+                                          (js->clj js/tests :keywordize-keys true))]
+            (reset! test-count (count ref-test-filenames))
+            (doseq [test-filename ref-test-filenames] 
+              (.send goog.net.XhrIo
+                     (absolute-uri test-filename) 
+                     (convert-test-callback test-filename compiled-tests-div)))))))))
 
 (defn entry []
   (fn []
-    (let [ref-tests-js (atom [])
-          ref-test-ids (object/get js/window "ref_test_ids")
-          location (-> js/window (object/get "location") (object/get "href"))
-          body (-> js/window (object/get "document") (object/get "body"))
-          compiled-tests-div (dom/createDom "div" (clj->js {:id "compiled-tests"}))]
-      (reset! test-count (count ref-test-ids))
+    (let [body (-> js/window (object/get "document") (object/get "body"))
+          compiled-tests-div (dom/createDom "div" (clj->js {:id "convert-tests"}))]
       (dom/appendChild body compiled-tests-div)
-      (doseq [test-file-name ref-test-ids] 
-        (.send goog.net.XhrIo (str/replace location 
-                                           #"doo-index.html" 
-                                           test-file-name) 
-               (convert-callback test-file-name compiled-tests-div))))))
+      (.send goog.net.XhrIo 
+             (absolute-uri "tests.js") 
+             (convert-tests-callback compiled-tests-div)))))
 
 (defn exit []
   (fn [successful?]))
