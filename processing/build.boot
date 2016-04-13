@@ -17,7 +17,8 @@
          '[clojure.java.io :as io]
          '[clj-uuid :as uuid]
          '[adzerk.boot-cljs :refer [cljs]]
-         '[prepare-ref-tests.util :as util])
+         '[prepare-ref-tests.util :as util]
+         '[run-ref-tests.epsilon-overrides])
 
 (def +lib-version+ "1.4.16")
 (def +version+ (str +lib-version+ "-0"))
@@ -179,35 +180,6 @@
         (fs-metadata fileset :test-pde-js-filenames-provides compiled-tests)))))))
 
 
-
-
-(def epsilon-overrides { "arc-fill-crisp.pde"           0.097 
-                         "crisp-line.pde"               0.075
-                         "crisp-horizontal-lines.pde"   0.205 
-                         "crisp-vertical-lines.pde"     0.205 
-                         "rounded-rect.pde"             0.064 
-                         "color-wheel.pde"              0.077 
-                         "conway.pde"                   0.523 
-                         "flocking.pde"                 0.266 
-                         "koch.pde"                     0.064 
-                         "noise-wave.pde"               0.736 
-                         "noise1d.pde"                  0.488 
-                         "noise2d.pde"                  0.262 
-                         "noise3d.pde"                  0.242 
-                         "spore1.pde"                   0.401 
-                         "string-codepointat.pde"       0.212 
-                         "text-boxed-left-top.pde"      0.196 
-                         "text-boxed-left-bottom.pde"   0.196 
-                         "text-boxed-center-top.pde"    0.205 
-                         "text-boxed-center-center.pde" 0.208 
-                         "text-boxed-center-bottom.pde" 0.205 
-                         "text-boxed-vcenter.pde"       0.174 
-                         "multiple-constructors.pde"    0.064 
-                         "text-font-fromfile.pde"       0.224 })
-
-
-
-
 (deftask run-compiled-ref-tests []
   (boot/with-pre-wrap fileset
     (if-let [js-output-file-path (some->> (boot/output-files fileset)
@@ -239,7 +211,7 @@
           (with-open [rdr (io/reader ref-test-list-path)]
             (doseq [line (line-seq rdr)]
               (if-let [[_ path] (re-find #"path: \"(.*?)\"" line)]
-                (if-let [epsilon-override (epsilon-overrides path)]
+                (if-let [epsilon-override (run-ref-tests.epsilon-overrides/for-test path)]
                   (swap! munged-lines conj (str/replace line 
                                                         #"\](?:,\sepsilonOverride:\s\d\.\d+)?\s}" 
                                                         (str "], epsilonOverride: " epsilon-override " }")))
