@@ -14,8 +14,8 @@
 (defn marshal-to-string [ref-tests]
   (str "|START|"
        (join "|||||"
-             (map (fn [{:keys [ref-test-id processing-js-code]}] 
-                    (join "|||" [ref-test-id (serialize-to-ascii processing-js-code)]))
+             (map (fn [{:keys [test-name processing-js-code]}] 
+                    (join "|||" [test-name (serialize-to-ascii processing-js-code)]))
                   ref-tests))
        "|END|"))
 
@@ -24,8 +24,8 @@
         ref-tests-js (str/split ref-tests-js-string #"\|\|\|\|\|")
         something (atom [])]
     (doseq [ref-test-js ref-tests-js]
-      (let [[ref-test-id processing-js-code] (str/split ref-test-js #"\|\|\|")]
-        (swap! something conj {:ref-test-id ref-test-id
+      (let [[test-name processing-js-code] (str/split ref-test-js #"\|\|\|")]
+        (swap! something conj {:test-name test-name
                                :processing-js-code processing-js-code}))
           )
     @something))

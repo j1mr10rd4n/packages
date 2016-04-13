@@ -80,42 +80,6 @@
             (boot/add-source tmp-dir) 
             boot/commit!))))
 
-(defn add-compile-pde-ns! [fileset tmp-main suite-ns]
-  (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
-        out-file (doto (io/file tmp-main out-main) io/make-parents)
-        ns-spec `(~'ns ~suite-ns
-                   (:require [prepare-ref-tests.convert-pde-to-js :as ~'convert]
-                             [doo.runner :as ~'runner]
-                             [~'tests_var_ids]))
-        run-exp `(do (~'runner/set-exit-point! (~'convert/exit)) 
-                     (~'runner/set-entry-point! (~'convert/entry)))]
-    (info "Writing %s...\n " out-main)
-    (println 
-        (->> [ns-spec run-exp]
-             (map #(with-out-str (clojure.pprint/pprint %)))
-             (str/join "\n" )))
-    (spit out-file 
-        (->> [ns-spec run-exp]
-             (map #(with-out-str (clojure.pprint/pprint %)))
-             (str/join "\n" )))))
-
-(deftask prep-compile-pde-scripts []
-  (let [out-file "compile-pde.js"
-        out-id (str/replace out-file #"\.js$" "") 
-        suite-ns 'ref-tests.compile-pde
-        tmp-main (boot/tmp-dir!)]
-    (boot/with-pre-wrap fileset
-      (boot/empty-dir! tmp-main)
-      (info "Writing %s...\n" (str out-id ".cljs.edn"))
-      (println (pr-str {:require [suite-ns]}))
-      (spit (doto (io/file tmp-main (str out-id ".cljs.edn")) io/make-parents)
-            (pr-str {:require [suite-ns]}))
-      (add-compile-pde-ns! fileset tmp-main suite-ns)
-      (-> fileset (boot/add-source tmp-main) boot/commit!)
-      )
-    )
-  )
-
 
 (defn add-run-ref-tests-ns! [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
@@ -165,27 +129,14 @@
       (add-run-ref-tests-ns! fileset tmp-main suite-ns)
       (-> fileset (boot/add-source tmp-main) boot/commit!))))
 
-(defn- compiler-opts-prep [fileset]
-  (let [foreign-libs [{:file "tests_var_ids.js" 
-                       :provides ["tests_var_ids"]}
-                      {:file "deps-src/processing-js-1.4.16/processing.js" 
-                       :provides ["processing-js"]}]]
+(defn- compiler-opts-prep []
     {:optimizations :none
-     :foreign-libs foreign-libs}))
+     :verbose true
+     :foreign-libs [{:file "tests_var_ids.js" 
+                     :provides ["tests_var_ids"]}
+                    {:file "deps-src/processing-js-1.4.16/processing.js" 
+                     :provides ["processing-js"]}]})
 
-; have to wrap cljs becuase the compiler-opts we want to pass won't be known
-; until after the previous tasks have run
-(deftask wrap-cljs-prep []
-  (merge-env! :source-paths #{"src" "test"})
-  (fn middleware [next-handler]
-    (fn handler [fileset]
-      (let [compiler-opts (compiler-opts-prep fileset)
-            cljs-handler (cljs :ids #{"compile-pde"}
-                               :compiler-options compiler-opts)
-            fileset' (atom nil)
-            dummy-handler (fn [compiled-fileset] (reset! fileset' compiled-fileset))]
-        ((cljs-handler dummy-handler) fileset)
-        (next-handler @fileset')))))
 
 (defn- compiler-opts-run [fileset]
   (let [ref-test-libs (mapv (fn [{:keys [file test-id]}] {:file (str/replace file #"\.pde\.js" ".js") :provides [(str "prov." test-id)]}) 
@@ -246,7 +197,7 @@
 (deftask run-compile-pde-scripts []
   (boot/with-pre-wrap fileset
     (if-let [path (some->> (boot/output-files fileset)
-                           (filter (comp #{"compile-pde.js"} :path))
+                           (filter (comp #{"prepare_ref_tests/convert_pde.js"} :path))
                            (sort-by :time)
                            (last)
                            (boot/tmp-file)
@@ -257,7 +208,7 @@
 
       (let [dir (.getParentFile (java.io.File. path))
             js-env :phantom
-            cljs (merge (compiler-opts-prep fileset)
+            cljs (merge (compiler-opts-prep)
                         {:output-to path,
                          :output-dir (str/replace path #".js\z" ".out")})
             opts {:exec-dir dir :debug true}
@@ -388,22 +339,21 @@
 (deftask doit []
   (comp
     (extract-ref-test-data)
-    (prep-compile-pde-scripts)
-    (wrap-cljs-prep)
     (run-compile-pde-scripts)
     (prep-compiled-test-sources)
     (show "-f")
     ))
 
 (deftask doit-wrapped []
+  (merge-env! :source-paths #{"test"})
   (set-env! :resource-paths #{"deps-src/processing-js-1.4.16/test/ref/"})
   (comp 
   (fn middleware [next-handler]
     (fn handler [fileset]
       (let [fileset-atom (atom fileset)
             wrapped-tasks (comp (extract-ref-test-data)
-                                (prep-compile-pde-scripts)
-                                (wrap-cljs-prep)
+                                (cljs :ids #{"prepare_ref_tests/convert_pde"}
+                                      :compiler-options (compiler-opts-prep))
                                 (run-compile-pde-scripts))
             wrapping-handler (fn [fileset] (reset! fileset-atom (write-test-js-files fileset @fileset-atom)))]
         ((wrapped-tasks wrapping-handler) fileset)
@@ -422,7 +372,7 @@
   (fn middleware [next-handler]
     (fn handler [fileset]
       (let [foreign-libs (fs-metadata fileset :test-pde-js-filenames-provides)
-            compiler-opts (compiler-opts-prep fileset)
+            compiler-opts (compiler-opts-prep)
             test-cljs-handler (test-cljs :js-env :phantom
                                          :namespaces #{"prepare-ref-tests*"}
                                          ;:suite-ns 'convert-it-with-doo
