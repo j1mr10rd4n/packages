@@ -176,7 +176,7 @@
                   (:require [run-ref-tests.launcher :as ~'launcher]
                             [goog.object :as ~'object]
                             [doo.runner :as ~'runner]
-                            [test-paths-and-vars]
+                            [~'test-paths-and-vars]
                   ~@(mapv #(vector (symbol (str "prov." (:test-id %)))) 
                           ref-test-js-files-and-ids)
                   ))
@@ -278,30 +278,6 @@
         ((cljs-handler dummy-handler) fileset)
         (next-handler @fileset')))))
 
-(deftask run-compile-pde-scripts []
-  (boot/with-pre-wrap fileset
-    (if-let [path (some->> (boot/output-files fileset)
-                           (filter (comp #{"compile-pde.js"} :path))
-                           (sort-by :time)
-                           (last)
-                           (boot/tmp-file)
-                           (.getPath))]
-      (let [dir (.getParentFile (java.io.File. path))
-            js-env :phantom
-            cljs (merge (compiler-opts-prep fileset)
-                        {:output-to path,
-                         :output-dir (str/replace path #".js\z" ".out")})
-            opts {:exec-dir dir :debug true}
-            {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)]
-        (let [compiled-ref-tests (util/unmarshal-from-string out)
-              ref-test-foreign-libs (fs-metadata fileset :test-pde-js-filenames-provides)
-              compiled-to-collect (atom [])]
-         (doseq [{:keys [ref-test-id processing-js-code]} compiled-ref-tests]
-           (let [ref-test-as-js (util/deserialize-from-ascii processing-js-code)
-                 original (first (filter (fn [{:keys [file provides]}] (= (provides 0) ref-test-id)) ref-test-foreign-libs))
-                 merged (merge original {:test-js (util/deserialize-from-ascii processing-js-code)})]
-             (swap! compiled-to-collect conj merged)))
-        (fs-metadata fileset :test-pde-js-filenames-provides @compiled-to-collect))))))
 
 
 (defn- copy-dir-contents [ref-tests-dir-path output-dir-path]
@@ -314,6 +290,32 @@
       (if (.isDirectory f)
         (.mkdir dest-file)
         (io/copy f dest-file)))))
+
+
+(deftask run-compile-pde-scripts []
+  (boot/with-pre-wrap fileset
+    (if-let [path (some->> (boot/output-files fileset)
+                           (filter (comp #{"compile-pde.js"} :path))
+                           (sort-by :time)
+                           (last)
+                           (boot/tmp-file)
+                           (.getPath))]
+      (do
+      ; copy the ref test index and resources into the folder that the phantom page can find
+      (copy-dir-contents "deps-src/processing-js-1.4.16/test/ref" (-> (io/file path) .getParentFile .getPath))
+
+      (let [dir (.getParentFile (java.io.File. path))
+            js-env :phantom
+            cljs (merge (compiler-opts-prep fileset)
+                        {:output-to path,
+                         :output-dir (str/replace path #".js\z" ".out")})
+            opts {:exec-dir dir :debug true}
+            {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)]
+        (let [ascii-serialized-tests (util/unmarshal-from-string out)
+              compiled-tests (map (fn [{:keys [test-name processing-js-code]}] {:test-name test-name 
+                                                             :test-js (util/deserialize-from-ascii processing-js-code)})
+                             ascii-serialized-tests)]
+        (fs-metadata fileset :test-pde-js-filenames-provides compiled-tests)))))))
 
 
 
@@ -404,30 +406,17 @@
                                      :test-pde-js-filenames-provides)
          ref-tests-as-js (atom [])
          tmp-main        (boot/tmp-dir!)]
-     (doseq [{file :file [test-id] :provides test-js :test-js pixels-string :pixels-string height :height width :width is-3d? :is-3d} ref-tests-data]
-       ;(let [js-file       (doto (io/file tmp-main (str/replace file #"(.*)\.pde\.js" "prov/$1.js")) io/make-parents)
-       (let [js-file       (doto (io/file tmp-main (str "prov/" test-id ".js")) io/make-parents)
-             my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "prov." test-id "." test-id "_f = $1"))
-             var-declare   (str test-id " = {};")
-             ; compiling pde->js creates IIFEs so need to wrap them in a function for later eval
-             ;test-function (str test-id ".testFunction = function() { return " test-js ";};")
-             ;try without
-             test-function (str test-id ".testFunction = " test-js ";")
-
-             ;test-function (str test-id ".testFunction = function() { return ( function(x) { console.log('MIAOW'); } ) };")
-             ;pixels (str test-id ".pixels = [" pixels-string "];")
-             height (str test-id ".height = " height ";")
-             width (str test-id ".width = " width ";")
-             is-3d? (str test-id ".is3D = " is-3d? ";")]
-         (println "***")
-         (println my-fn)
-         (swap! ref-tests-as-js conj {:file file :test-id test-id})
+     (doseq [{:keys [test-name test-js]} ref-tests-data]
+       (let [test-id (str "var" ((str/split (str (uuid/v1)) #"-") 0))
+             js-file       (doto (io/file tmp-main (str "prov/" test-id ".js")) io/make-parents)
+             my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "prov." test-id "." test-id "_f = $1"))]
+         (swap! ref-tests-as-js conj {:file test-name :test-id test-id})
          (spit js-file
                (str/join "\n" [(str "goog.provide('prov." test-id "');") my-fn]))))
 
      ; write a js dictionary of test var ids against paths
      (let [test-paths-and-ids (str/join ", " 
-                                        (map (fn [{:keys [file test-id]}] (str "\"" (str/replace file #"\.pde\.js" ".pde") "\": " (str "'" test-id "'")))
+                                        (map (fn [{:keys [test-name test-id]}] (str "\"" test-name  "\": " (str "'" test-id "'")))
                                              @ref-tests-as-js))
            var-test-paths-and-ids (str "var test_paths_and_ids = {" test-paths-and-ids "};")]
        (swap! ref-tests-as-js conj {:file "test-paths-and-ids.js" :test-id "test-paths-and-ids"})
