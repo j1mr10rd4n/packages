@@ -69,31 +69,55 @@
      :foreign-libs [{:file "deps-src/processing-js-1.4.16/processing.js" 
                      :provides ["processing-js"]}]})
 
+(defn- find-compilation-output-path [fileset namespace]
+  (some->> (boot/output-files fileset)
+           (filter (comp #{namespace} :path))
+           (sort-by :time)
+           (last)
+           (boot/tmp-file)
+           (.getPath)))
+
 (deftask convert-tests-pde-to-js []
   (boot/with-pre-wrap fileset
-    (if-let [path (some->> (boot/output-files fileset)
-                           (filter (comp #{"prepare_ref_tests/convert_pde.js"} :path))
-                           (sort-by :time)
-                           (last)
-                           (boot/tmp-file)
-                           (.getPath))]
-      (do
-        ; copy the ref test index and resources into the folder that the phantom page can find
-        (copy-dir-contents "deps-src/processing-js-1.4.16/test/ref" (-> (io/file path) .getParentFile .getPath))
+    (if-let [compilation-output-path (find-compilation-output-path fileset "prepare_ref_tests/convert_pde.js")]
+      (let [compilation-output-dir (-> compilation-output-path io/file .getParentFile)
+            tmp-main (boot/tmp-dir!)]
 
-        (let [dir (.getParentFile (java.io.File. path))
-              js-env :phantom
+        ; copy the ref test index and resources into the folder that the phantom page can find
+        (copy-dir-contents "deps-src/processing-js-1.4.16/test/ref" (-> compilation-output-dir .getPath))
+
+        (let [js-env :phantom
               cljs (merge (compiler-opts-for-convert)
-                          {:output-to path,
-                           :output-dir (str/replace path #".js\z" ".out")})
-              opts {:exec-dir dir :debug true}
+                          {:output-to compilation-output-path,
+                           :output-dir (str/replace compilation-output-path #".js\z" ".out")})
+              opts {:exec-dir compilation-output-dir :debug true}
               {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)]
+
           (let [ascii-serialized-tests (util/unmarshal-from-string out)
-                compiled-tests (map (fn [{:keys [test-name processing-js-code]}] 
+                converted-tests (map (fn [{:keys [test-name processing-js-code]}] 
                                       {:test-name test-name 
-                                       :test-js (util/deserialize-from-ascii processing-js-code)})
+                                       :test-js (util/deserialize-from-ascii processing-js-code)
+                                       :test-id (str "var" ((str/split (str (uuid/v1)) #"-") 0))})
                                ascii-serialized-tests)]
-          (fs-metadata fileset :test-pde-js-filenames-provides compiled-tests)))))))
+
+            (doseq [{:keys [test-name test-js test-id]} converted-tests]
+              (let [js-file (doto (io/file tmp-main (str "prov/" test-id ".js")) io/make-parents)
+                    my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "prov." test-id "." test-id "_f = $1"))]
+                (spit js-file
+                      (str/join "\n" [(str "goog.provide('prov." test-id "');") my-fn]))))
+
+
+            ; write a js dictionary of test var ids against paths
+            (let [test-paths-and-ids (str/join ", " 
+                                               (map (fn [{:keys [test-name test-id]}] 
+                                                      (str "\"" test-name  "\": " (str "'" test-id "'")))
+                                                    converted-tests))]
+              (spit (io/file tmp-main "test-paths-and-ids.js")
+                    (str "var test_paths_and_ids = {" test-paths-and-ids "};")))
+
+            (-> (fs-metadata fileset :ref-test-js-files-and-ids converted-tests)
+                (boot/add-resource tmp-main) 
+                boot/commit!)))))))
 
 
 (defn add-run-ref-tests-ns! [fileset tmp-main suite-ns]
@@ -146,14 +170,10 @@
 
 
 (defn- compiler-opts-run [fileset]
-  (let [ref-test-libs (mapv (fn [{:keys [file test-id]}] {:file (str/replace file #"\.pde\.js" ".js") :provides [(str "prov." test-id)]}) 
-                           (fs-metadata fileset :ref-test-js-files-and-ids))
-        foreign-libs [{:file "test-paths-and-ids.js"
+  (let [foreign-libs [{:file "test-paths-and-ids.js"
                        :provides ["test-paths-and-vars"]}]
         libs (mapv #(str "prov/" (:test-id %) ".js" )
-                   (filter #(not (= "test-paths-and-ids" (:test-id %)))
-                                   (fs-metadata fileset :ref-test-js-files-and-ids))
-                    )]
+                   (fs-metadata fileset :ref-test-js-files-and-ids))]
     {:main "ref-tests.run-tests"
      ;:optimizations :none
      :optimizations :advanced
@@ -179,17 +199,9 @@
         (next-handler @fileset')))))
 
 
-
-
-
 (deftask run-compiled-ref-tests []
   (boot/with-pre-wrap fileset
-    (if-let [js-output-file-path (some->> (boot/output-files fileset)
-                                          (filter (comp #{"run-ref-tests.js"} :path))
-                                          (sort-by :time)
-                                          (last)
-                                          (boot/tmp-file)
-                                          (.getPath))]
+    (if-let [js-output-file-path (find-compilation-output-path fileset "run-ref-tests.js")]
       (let [exec-dir (.getParentFile (java.io.File. js-output-file-path))
             exec-dir-path (.getPath exec-dir)
             ref-tests-dir-path "deps-src/processing-js-1.4.16/test/ref"
@@ -234,60 +246,14 @@
 
       fileset))
 
-; this is actually tansferrig the metaadata across between the filesets
-(defn- write-test-js-files 
-  ([input-fileset output-fileset]
-   (let [ref-tests-data (fs-metadata input-fileset 
-                                     :test-pde-js-filenames-provides)
-         ref-tests-as-js (atom [])
-         tmp-main        (boot/tmp-dir!)]
-     (doseq [{:keys [test-name test-js]} ref-tests-data]
-       (let [test-id (str "var" ((str/split (str (uuid/v1)) #"-") 0))
-             js-file       (doto (io/file tmp-main (str "prov/" test-id ".js")) io/make-parents)
-             my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "prov." test-id "." test-id "_f = $1"))]
-         (swap! ref-tests-as-js conj {:file test-name :test-id test-id})
-         (spit js-file
-               (str/join "\n" [(str "goog.provide('prov." test-id "');") my-fn]))))
-
-     ; write a js dictionary of test var ids against paths
-     (let [test-paths-and-ids (str/join ", " 
-                                        (map (fn [{:keys [test-name test-id]}] (str "\"" test-name  "\": " (str "'" test-id "'")))
-                                             @ref-tests-as-js))
-           var-test-paths-and-ids (str "var test_paths_and_ids = {" test-paths-and-ids "};")]
-       (swap! ref-tests-as-js conj {:file "test-paths-and-ids.js" :test-id "test-paths-and-ids"})
-       (spit (doto (io/file tmp-main "test-paths-and-ids.js"))
-             var-test-paths-and-ids))
-
-     (-> (fs-metadata output-fileset :ref-test-js-files-and-ids @ref-tests-as-js)
-         (boot/add-resource tmp-main) 
-         boot/commit!)))
-  ([fileset]
-   (write-test-js-files fileset fileset)))
-
-(deftask prep-compiled-test-sources []
-  (set-env! :resource-paths #{"deps-src/processing-js-1.4.16/test/ref/"})
-  (boot/with-pre-wrap fileset
-    (write-test-js-files fileset))) 
-
 
 (deftask doit-wrapped []
   (merge-env! :source-paths #{"test"})
   (set-env! :resource-paths #{"deps-src/processing-js-1.4.16/test/ref/"})
-  (comp 
-  (fn middleware [next-handler]
-    (fn handler [fileset]
-      (let [fileset-atom (atom fileset)
-            wrapped-tasks (comp (cljs :ids #{"prepare_ref_tests/convert_pde"}
-                                      :compiler-options (compiler-opts-for-convert))
-                                (convert-tests-pde-to-js))
-            wrapping-handler (fn [fileset] (reset! fileset-atom (write-test-js-files fileset @fileset-atom)))]
-        ((wrapped-tasks wrapping-handler) fileset)
-        (next-handler @fileset-atom))))
-  ;(fn middleware [next-handler]
-    ;(fn handler [fileset]
-      ;(next-handler fileset)))
+  (comp
+    (cljs :ids #{"prepare_ref_tests/convert_pde"}
+          :compiler-options (compiler-opts-for-convert))
+    (convert-tests-pde-to-js)
     (prep-run-ref-test-scripts)
     (wrap-cljs-run)
-    (run-compiled-ref-tests)
-  ))
-
+    (run-compiled-ref-tests))) 
