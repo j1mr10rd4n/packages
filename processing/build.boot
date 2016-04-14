@@ -123,8 +123,7 @@
 (defn add-run-ref-tests-ns! [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
         out-file (doto (io/file tmp-main out-main) io/make-parents)
-        ref-test-js-files-and-ids (filter #(not (= "test-paths-and-ids" (:test-id %)))
-                                    (fs-metadata fileset :ref-test-js-files-and-ids))
+        ref-test-js-files-and-ids (fs-metadata fileset :ref-test-js-files-and-ids)
         ns-spec `(~'ns ~suite-ns
                   (:require [run-ref-tests.launcher :as ~'launcher]
                             [goog.object :as ~'object]
