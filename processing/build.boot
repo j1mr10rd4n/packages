@@ -101,7 +101,7 @@
                                ascii-serialized-tests)]
 
             (doseq [{:keys [test-name test-js test-id]} converted-tests]
-              (let [js-file (doto (io/file tmp-main (str "prov/" test-id ".js")) io/make-parents)
+              (let [js-file (doto (io/file tmp-main (str "prov/" test-name ".js")) io/make-parents)
                     my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "prov." test-id "." test-id "_f = $1"))]
                 (spit js-file
                       (str/join "\n" [(str "goog.provide('prov." test-id "');") my-fn]))))
@@ -171,7 +171,7 @@
 (defn- compiler-opts-run [fileset]
   (let [foreign-libs [{:file "test-paths-and-ids.js"
                        :provides ["test-paths-and-vars"]}]
-        libs (mapv #(str "prov/" (:test-id %) ".js" )
+        libs (mapv #(str "prov/" (:test-name %) ".js" )
                    (fs-metadata fileset :ref-test-js-files-and-ids))]
     {:main "ref-tests.run-tests"
      ;:optimizations :none
@@ -197,6 +197,15 @@
         ((cljs-handler dummy-handler) fileset)
         (next-handler @fileset')))))
 
+(defn- replace-processing-js-link [s]
+  (str/replace s 
+               #"src=\"\/processing\.min\.js\"" 
+               "src=\"processing.min.js\""))
+
+(defn- add-sketch-source-swap-function [s]
+  (str/replace s
+               #"(s = Processing\.compile\(test.code\);)"
+               "$1\ns = opener.replaceSketchSourceCode(s, test.name);"))
 
 (deftask run-compiled-ref-tests []
   (boot/with-pre-wrap fileset
@@ -212,9 +221,12 @@
         (io/copy (io/file "deps-src/processing-js-1.4.16/processing.min.js") (io/file (str exec-dir-path "/processing.min.js")))
 
         ; munge the processing link in index.html
+        ; add function that swaps test source from pde for the javascript-converted version
         (let [ref-test-index-path (str exec-dir-path "/index.html")
               ref-test-index-content (slurp (io/file ref-test-index-path))
-              munged-content (str/replace ref-test-index-content #"src=\"\/processing\.min\.js\"" "src=\"processing.min.js\"")]
+              munged-content ((comp add-sketch-source-swap-function 
+                                    replace-processing-js-link)
+                              ref-test-index-content)]
           (spit ref-test-index-path munged-content))
 
 

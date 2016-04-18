@@ -6,6 +6,14 @@
 (enable-console-print!)
 
 
+(defn replaceSketchSourceCode
+  [sketch testName]
+  (let [testId (object/get js/window "test_paths_and_ids")
+        testFunction (object/get js/window (str ((js->clj testId) testName) "_f"))]
+    (object/set sketch "sourceCode" testFunction))
+  sketch)
+
+
 (defn parseEvent [e]
   (let [target (object/get e "target")]
     (into [target] (mapv #(object/get target %) 
@@ -72,7 +80,8 @@
       (println "Opening:" ref-test-index-location)
       (try
         (let [ref-tests-window (.open js/window ref-test-index-location "ref-tests-index-window")]
-          (object/set js/window "ref-tests-window" ref-tests-window))
+          (object/set js/window "ref-tests-window" ref-tests-window)
+          (object/set js/window "replaceSketchSourceCode" replaceSketchSourceCode))
         (catch :default e
           (println "Couldn't open ref-tests-window" e)
           e)))
