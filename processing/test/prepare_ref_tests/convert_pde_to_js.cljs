@@ -18,7 +18,7 @@
   (let [ref-tests-js (atom [])]
     (doseq [div (dom/getChildren compiled-tests-div)]
       (swap! ref-tests-js conj {:test-name (object/get div "id")
-                               :processing-js-code (object/get div "innerText")})) 
+                               :processing-js-code (object/get div "textContent")})) 
     ;outputs to console.log - hacky but alternative would be to set up an http
     ;server to accept posts - doo doesn't give us access to phantom's file-io api
     (.callPhantom js/window (u/marshal-to-string @ref-tests-js)) 
