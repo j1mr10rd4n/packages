@@ -24,14 +24,13 @@
 (def +version+ (str +lib-version+ "-0"))
 
 (task-options!
- pom  {:project     'cljsjs/processing
-       :version     +version+
-       :description "Javascript port of the Processing visual programming language"
-       :url         "http://processingjs.org"
-       :scm         {:url "https://github.com/cljsjs/packages"}
-       :license     {"MIT" "http://opensource.org/licenses/MIT"}}
-)
-
+  pom  {:project     'cljsjs/processing
+        :version     +version+
+        :description "Javascript port of the Processing visual programming language"
+        :url         "http://processingjs.org"
+        :scm         {:url "https://github.com/cljsjs/packages"}
+        :license     {"MIT" "http://opensource.org/licenses/MIT"}})
+ 
 (deftask package []
   (comp
    (download :url      (str "https://github.com/processing-js/processing-js/archive/v" +lib-version+ ".zip")
