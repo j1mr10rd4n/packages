@@ -56,7 +56,7 @@
             (println "SUITE FINISHED!!")
             ;(println (-> js/window (object/get "ref-tests-window") (object/get "document") (object/get "body") (object/get "outerHTML")))
             (println (test-suite-summary))
-            (.exit! (object/get js/doo "runner") true))))))) 
+            ((object/get js/window "exit_runner") true))))))) 
 
 
 (defn start-tests [ref-tests-window]

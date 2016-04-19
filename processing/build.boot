@@ -140,7 +140,8 @@
                               `(object/set js/window ~f ~x) 
                               )
                             ref-test-js-files-and-ids)
-                     (println (object/getKeys js/window))
+                     ; need to export exit fn so advanced compilation retains it
+                     ~'(object/set js/window "exit_runner" runner/exit!) 
                      (~'runner/set-exit-point! (~'launcher/exit))
                      (~'runner/set-entry-point! (~'launcher/entry)))]
     (info "Writing %s...\n " out-main)
@@ -174,7 +175,6 @@
         libs (mapv #(str "prov/" (:test-name %) ".js" )
                    (fs-metadata fileset :ref-test-js-files-and-ids))]
     {:main "ref-tests.run-tests"
-     ;:optimizations :none
      :optimizations :advanced
      :foreign-libs foreign-libs
      :libs libs
@@ -189,7 +189,6 @@
     (fn handler [fileset]
       (let [compiler-opts (compiler-opts-run fileset)
             cljs-handler (cljs :ids #{"run-ref-tests"}
-                               :optimizations :advanced
                                :compiler-options compiler-opts)
             fileset' (atom nil)
             dummy-handler (fn [compiled-fileset] (reset! fileset' compiled-fileset))]
