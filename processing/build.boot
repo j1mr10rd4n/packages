@@ -100,10 +100,10 @@
                                ascii-serialized-tests)]
 
             (doseq [{:keys [test-name test-js test-id]} converted-tests]
-              (let [js-file (doto (io/file tmp-main (str "prov/" test-name ".js")) io/make-parents)
-                    my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "prov." test-id "." test-id "_f = $1"))]
+              (let [js-file (doto (io/file tmp-main (str "converted/" test-id ".js")) io/make-parents)
+                    my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "converted." test-id "." test-id "_f = $1"))]
                 (spit js-file
-                      (str/join "\n" [(str "goog.provide('prov." test-id "');") my-fn]))))
+                      (str/join "\n" [(str "goog.provide('converted." test-id "');") my-fn]))))
 
 
             ; write a js dictionary of test var ids against paths
@@ -128,12 +128,12 @@
                             [goog.object :as ~'object]
                             [doo.runner :as ~'runner]
                             [~'test-paths-and-vars]
-                  ~@(mapv #(vector (symbol (str "prov." (:test-id %)))) 
+                  ~@(mapv #(vector (symbol (str "converted." (:test-id %)))) 
                           ref-test-js-files-and-ids)
                   ))
         run-exp `(do 
                      ~@(map #(let [vr (symbol (:test-id %))
-                                   pvr (symbol (str "prov." vr))
+                                   pvr (symbol (str "converted." vr))
                                    f (str vr "_f")
                                    x (symbol (str pvr "/" f))]
                               `(object/set js/window ~f ~x) 
@@ -171,7 +171,7 @@
 (defn- compiler-opts-run [fileset]
   (let [foreign-libs [{:file "test-paths-and-ids.js"
                        :provides ["test-paths-and-vars"]}]
-        libs (mapv #(str "prov/" (:test-name %) ".js" )
+        libs (mapv #(str "converted/" (:test-id %) ".js" )
                    (fs-metadata fileset :ref-test-js-files-and-ids))]
     {:main "ref-tests.run-tests"
      :optimizations :advanced
