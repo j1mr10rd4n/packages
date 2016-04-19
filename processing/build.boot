@@ -2,7 +2,7 @@
  :source-paths #{"test"}
  ;:resource-paths #{"resources"}
  :dependencies '[[cljsjs/boot-cljsjs "0.5.0"  :scope "test"]
-                 [doo "0.1.8-SNAPSHOT" :scope "test"]
+                 [doo "0.1.7-SNAPSHOT" :scope "test"]
                  [crisptrutski/boot-cljs-test "0.2.3-SNAPSHOT" :scope "test"]
                  [org.clojure/clojurescript "1.7.228"]
                  [org.clojure/core.async "0.2.374"]
