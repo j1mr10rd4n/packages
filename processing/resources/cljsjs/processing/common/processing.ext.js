@@ -436,3 +436,298 @@ Processing.prototype.unhex = function(str){};
 Processing.prototype.shearX = function(angle){};
 Processing.prototype.shearY = function(angle){};
 Processing.prototype.randomGaussian = function(){};
+
+
+// Environment Constants
+Processing.X;
+Processing.Y;
+Processing.Z;
+
+Processing.R;
+Processing.G;
+Processing.B;
+Processing.A;
+
+Processing.U;
+Processing.V;
+
+Processing.NX;
+Processing.NY;
+Processing.NZ;
+
+Processing.EDGE;
+
+// Stroke
+Processing.SR;
+Processing.SG;
+Processing.SB;
+Processing.SA;
+
+Processing.SW;
+
+// Transformations (2D and 3D)
+Processing.TX;
+Processing.TY;
+Processing.TZ;
+
+Processing.VX;
+Processing.VY;
+Processing.VZ;
+Processing.VW;
+
+// Material properties
+Processing.AR;
+Processing.AG;
+Processing.AB;
+
+Processing.DR;
+Processing.DG;
+Processing.DB;
+Processing.DA;
+
+Processing.SPR;
+Processing.SPG;
+Processing.SPB;
+
+Processing.SHINE;
+
+Processing.ER;
+Processing.EG;
+Processing.EB;
+
+Processing.BEEN_LIT;
+
+Processing.VERTEX_FIELD_COUNT;
+
+// Renderers
+Processing.P2D;
+Processing.JAVA2D;
+Processing.WEBGL;
+Processing.P3D;
+Processing.OPENGL;
+Processing.PDF;
+Processing.DXF;
+
+// Platform IDs
+Processing.OTHER;
+Processing.WINDOWS;
+Processing.MAXOSX;
+Processing.LINUX;
+
+Processing.EPSILON;
+
+Processing.MAX_FLOAT;
+Processing.MIN_FLOAT;
+Processing.MAX_INT;
+Processing.MIN_INT;
+
+Processing.PI;
+Processing.TWO_PI;
+Processing.TAU;
+Processing.HALF_PI;
+Processing.THIRD_PI;
+Processing.QUARTER_PI;
+
+Processing.DEG_TO_RAD;
+Processing.RAD_TO_DEG;
+
+Processing.WHITESPACE;
+
+// Color modes
+Processing.RGB;
+Processing.ARGB;
+Processing.HSB;
+Processing.ALPHA;
+Processing.CMYK;
+
+// Image file types
+Processing.TIFF;
+Processing.TARGA;
+Processing.JPEG;
+Processing.GIF;
+
+// Filter/convert types
+Processing.BLUR;
+Processing.GRAY;
+Processing.INVERT;
+Processing.OPAQUE;
+Processing.POSTERIZE;
+Processing.THRESHOLD;
+Processing.ERODE;
+Processing.DILATE;
+
+// Blend modes
+Processing.REPLACE;
+Processing.BLEND;
+Processing.ADD;
+Processing.SUBTRACT;
+Processing.LIGHTEST;
+Processing.DARKEST;
+Processing.DIFFERENCE;
+Processing.EXCLUSION;
+Processing.MULTIPLY;
+Processing.SCREEN;
+Processing.OVERLAY;
+Processing.HARD_LIGHT;
+Processing.SOFT_LIGHT;
+Processing.DODGE;
+Processing.BURN;
+
+// Color component bit masks
+Processing.ALPHA_MASK;
+Processing.RED_MASK;
+Processing.GREEN_MASK;
+Processing.BLUE_MASK;
+
+// Projection matrices
+Processing.CUSTOM;
+Processing.ORTHOGRAPHIC;
+Processing.PERSPECTIVE;
+
+// Shapes
+Processing.POINT;
+Processing.POINTS;
+Processing.LINE;
+Processing.LINES;
+Processing.TRIANGLE;
+Processing.TRIANGLES;
+Processing.TRIANGLE_STRIP;
+Processing.TRIANGLE_FAN;
+Processing.QUAD;
+Processing.QUADS;
+Processing.QUAD_STRIP;
+Processing.POLYGON;
+Processing.PATH;
+Processing.RECT;
+Processing.ELLIPSE;
+Processing.ARC;
+Processing.SPHERE;
+Processing.BOX;
+
+Processing.GROUP;
+Processing.PRIMITIVE;
+Processing.GEOMETRY;
+
+// Shape Vertex
+Processing.VERTEX;
+Processing.BEZIER_VERTEX;
+Processing.CURVE_VERTEX;
+Processing.BREAK;
+Processing.CLOSESHAPE;
+
+// Shape closing modes
+Processing.OPEN;
+Processing.CLOSE;
+
+// Shape drawing modes
+Processing.CORNER;
+Processing.CORNERS;
+Processing.RADIUS;
+Processing.CENTER_RADIUS;
+Processing.CENTER;
+Processing.DIAMETER;
+Processing.CENTER_DIAMETER;
+
+// Text vertical alignment modes
+Processing.BASELINE;
+Processing.TOP;
+Processing.BOTTOM;
+
+// UV Texture coordinate modes
+Processing.NORMAL;
+Processing.NORMALIZED;
+Processing.IMAGE;
+
+// Text placement modes
+Processing.MODEL;
+Processing.SHAPE;
+
+// Stroke modes
+Processing.SQUARE;
+Processing.ROUND;
+Processing.PROJECT;
+Processing.MITER;
+Processing.BEVEL;
+
+// Lighting modes
+Processing.AMBIENT;
+Processing.DIRECTIONAL;
+Processing.//POINT; Shared with Shape constant
+Processing.SPOT;
+
+// Key constants
+
+// Both key and keyCode will be equal to these values
+Processing.BACKSPACE;
+Processing.TAB;
+Processing.ENTER;
+Processing.RETURN;
+Processing.ESC;
+Processing.DELETE;
+Processing.CODED;
+
+// p.key will be CODED and p.keyCode will be this value
+Processing.SHIFT;
+Processing.CONTROL;
+Processing.ALT;
+Processing.CAPSLK;
+Processing.PGUP;
+Processing.PGDN;
+Processing.END;
+Processing.HOME;
+Processing.LEFT;
+Processing.UP;
+Processing.RIGHT;
+Processing.DOWN;
+Processing.F1;
+Processing.F2;
+Processing.F3;
+Processing.F4;
+Processing.F5;
+Processing.F6;
+Processing.F7;
+Processing.F8;
+Processing.F9;
+Processing.F10;
+Processing.F11;
+Processing.F12;
+Processing.NUMLK;
+Processing.META;
+Processing.INSERT;
+
+// Cursor types
+Processing.ARROW;
+Processing.CROSS;
+Processing.HAND;
+Processing.MOVE;
+Processing.TEXT;
+Processing.WAIT;
+Processing.NOCURSOR;
+
+// Hints
+Processing.DISABLE_OPENGL_2X_SMOOTH;
+Processing.ENABLE_OPENGL_2X_SMOOTH;
+Processing.ENABLE_OPENGL_4X_SMOOTH;
+Processing.ENABLE_NATIVE_FONTS;
+Processing.DISABLE_DEPTH_TEST;
+Processing.ENABLE_DEPTH_TEST;
+Processing.ENABLE_DEPTH_SORT;
+Processing.DISABLE_DEPTH_SORT;
+Processing.DISABLE_OPENGL_ERROR_REPORT;
+Processing.ENABLE_OPENGL_ERROR_REPORT;
+Processing.ENABLE_ACCURATE_TEXTURES;
+Processing.DISABLE_ACCURATE_TEXTURES;
+Processing.HINT_COUNT;
+
+// PJS defined constants
+Processing.SINCOS_LENGTH;
+Processing.PRECISIONB;
+Processing.PRECISIONF;
+Processing.PREC_MAXVAL;
+Processing.PREC_ALPHA_SHIFT;
+Processing.PREC_RED_SHIFT;
+Processing.NORMAL_MODE_AUTO;
+Processing.NORMAL_MODE_SHAPE;
+Processing.NORMAL_MODE_VERTEX;
+Processing.MAX_LIGHTS;
+
