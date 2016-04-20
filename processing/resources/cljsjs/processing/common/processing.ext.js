@@ -484,6 +484,15 @@ var ArrayList = function(){};
 var ArrayList = function(a){};
 
 
+// defaultScope
+Processing.prototype.defineProperty = function(obj, name, desc){};
+Processing.prototype.extendClassChain = function(base){};
+Processing.prototype.extendStaticMembers = function(derived, base){};
+Processing.prototype.extendInterfaceMembers = function(derived, base){};
+Processing.prototype.addMethod = function(object, name, fn, hasMethodArgs){};
+Processing.prototype.createJavaArray = function(type, bounds){};
+
+
 // Environment Constants
 Processing.X;
 Processing.Y;
