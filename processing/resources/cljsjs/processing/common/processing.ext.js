@@ -437,6 +437,52 @@ Processing.prototype.shearX = function(angle){};
 Processing.prototype.shearY = function(angle){};
 Processing.prototype.randomGaussian = function(){};
 
+// PVector
+var PVector = {};
+var PVector = function(){};
+var PVector = function(x, y, z){};
+
+PVector.fromAngle = function(angle, v){};
+PVector.random2D = function(v){};
+PVector.random3D = function(v){};
+PVector.dist = function(v1, v2){};
+PVector.dot = function(v1, v2){};
+PVector.cross = function(v1, v2){};
+PVector.sub = function(v1, v2){};
+PVector.angleBetween = function(v1, v2){};
+PVector.lerp = function(v1, v2, amt){};
+
+PVector.prototype.set = function(v, y, z){};
+PVector.prototype.get = function(){};
+PVector.prototype.mag = function(){};
+PVector.prototype.setMag = function(v_or_len, len){};
+PVector.prototype.add = function(v, y, z){};
+PVector.prototype.sub = function(v, y, z){};
+PVector.prototype.mult = function(v){};
+PVector.prototype.div = function(v){};
+PVector.prototype.rotate = function(angle){};
+PVector.prototype.dist = function(v){};
+PVector.prototype.dot = function(v, y, z){};
+PVector.prototype.cross = function(v){};
+PVector.prototype.lerp = function(v_or_x, amt_or_y, z, amt){};
+PVector.prototype.normalize = function(){};
+PVector.prototype.limit = function(high){};
+PVector.prototype.heading = function(){};
+PVector.prototype.heading2D = function(){};
+PVector.prototype.toString = function(){};
+PVector.prototype.array = function(){};
+
+
+// Iterator
+var Iterator;
+var Iterator = function(){};
+var Iterator = function(array){};
+
+// ArrayList
+var ArrayList;
+var ArrayList = function(){};
+var ArrayList = function(a){};
+
 
 // Environment Constants
 Processing.X;
