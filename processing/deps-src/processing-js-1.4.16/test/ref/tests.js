@@ -172,7 +172,7 @@ var tests = [
   { path: "circles2.pde", tags: ["2D"] },
   { path: "conditionals1.pde", tags: ["2D", "Crisp"] },
   { path: "conditionals2.pde", tags: ["2D", "Crisp"] },
-  //{ path: "datatype-conversion.pde", tags: ["2D", "Crisp"] },
+  { path: "datatype-conversion.pde", tags: ["2D", "Crisp"] },
   { path: "distance-2d.pde", tags: ["2D"] },
   { path: "embedded-iteration.pde", tags: ["2D", "Crisp"] },
   { path: "iteration.pde", tags: ["2D", "Crisp"] },
@@ -181,11 +181,11 @@ var tests = [
   { path: "sine-wave.pde", tags: ["2D"] },
   { path: "target.pde", tags: ["2D"] },
   { path: "triangle-strip.pde", tags: ["2D"], epsilonOverride: 0.08 },
-  //{ path: "true-false.pde", tags: ["2D", "Crisp"] },
+  { path: "true-false.pde", tags: ["2D", "Crisp"] },
   { path: "variable-scope.pde", tags: ["2D", "Crisp"] },
   { path: "variables.pde", tags: ["2D", "Crisp"], epsilonOverride: 0.06 },
-  //{ path: "string-codepointat.pde", tags: ["2D", "Text"], epsilonOverride: 0.20 },
-  //{ path: "string-equalsignorecase.pde", tags: ["2D", "Text"], epsilonOverride: 0.20 },
+  { path: "string-codepointat.pde", tags: ["2D", "Text"], epsilonOverride: 0.20 },
+  { path: "string-equalsignorecase.pde", tags: ["2D", "Text"], epsilonOverride: 0.20 },
   { path: "text-pushpopstyle.pde", tags: ["2D", "Text"], epsilonOverride: 0.35 }, /* See ticket #1172 */
   { path: "text-width.pde", tags:["2D", "Text"], epsilonOverride: 0.20, knownFailureTicket: "1705" }, /* See ticket #1172 */
   { path: "text-boxed-left-top.pde", tags:["2D", "Text"], epsilonOverride: 0.19 }, /* See ticket #1172 */
@@ -234,7 +234,7 @@ var tests = [
   { path: "text-valign-TOP.pde", tags: ["2D", "Text"], epsilonOverride: 0.11 }, /* See ticket #1172 */
   { path: "text-valign-TOP-m.pde", tags: ["2D", "Text"], epsilonOverride: 0.11 }, /* See ticket #1172 */
   { path: "text-pfont.pde", tags: ["2D", "Text"], epsilonOverride: 0.30 }, /* See ticket #1172 */
-  //{ path: "letters.pde", tags: ["2D", "Text"], epsilonOverride: 0.45 }, /* See ticket #1172 */
+  { path: "letters.pde", tags: ["2D", "Text"], epsilonOverride: 0.45 }, /* See ticket #1172 */
   { path: "words.pde", tags: ["2D", "Text"], epsilonOverride: 0.25 }, /* See ticket #1172 */
   { path: "text-pushpopstyle.pde", tags: ["2D", "Text"], epsilonOverride: 0.35 }, /* See ticket #1172 */
   { path: "setup-noFill-noStroke.pde", tags: ["2D"]}, /* See ticket #1417 */

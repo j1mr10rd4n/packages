@@ -325,6 +325,9 @@ Processing.keyPressed;
 Processing.keyReleased;
 Processing.keyTyped;
 
+Processing.Char;
+Processing.Character;
+
 // Input Files
 Processing.prototype.loadBytes = function(filename){};
 Processing.prototype.loadStrings = function(filename){};
@@ -369,6 +372,21 @@ Processing.prototype.parseInt = function(val, radix){};
 Processing.prototype.__int_cast = function(val){};
 Processing.prototype.__instanceof = function(obj, type){};
 
+// Proxy functions
+Processing.prototype.__contains = function (subject, subStr){};
+Processing.prototype.__replaceAll = function(subject, regex, replacement){};
+Processing.prototype.__replaceFirst = function(subject, regex, replacement){};
+Processing.prototype.__replace = function(subject, what, replacement){};
+Processing.prototype.__equals = function(subject, other){};
+Processing.prototype.__equalsIgnoreCase = function(subject, other){};
+Processing.prototype.__toCharArray = function(subject){};
+Processing.prototype.__split = function(subject, regex, limit){};
+Processing.prototype.__codePointAt = function(subject, idx){};
+Processing.prototype.__matches = function(str, regexp){};
+Processing.prototype.__startsWith = function(subject, prefix, toffset){};
+Processing.prototype.__endsWith = function(subject, suffix){};
+Processing.prototype.__hashCode = function(subject){};
+Processing.prototype.__printStackTrace = function(subject){};
 
 // Transform
 Processing.prototype.applyMatrix = function(n00, n01, n02, n03,
