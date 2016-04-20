@@ -355,6 +355,21 @@ Processing.prototype.saveFrame = function(filename){};
 // Output Files
 Processing.prototype.saveStrings = function(filename, strings){};
 
+// String Functions
+Processing.prototype.matchAll = function(aString, aRegExp){};
+Processing.prototype.match = function(str, regexp){};
+
+// Other java specific functions
+Processing.prototype.str = function(val){};
+Processing.prototype.parseBoolean = function(val){};
+Processing.prototype.parseByte = function(what){};
+Processing.prototype.parseChar = function(key){};
+Processing.prototype.parseFloat = function(val){};
+Processing.prototype.parseInt = function(val, radix){};
+Processing.prototype.__int_cast = function(val){};
+Processing.prototype.__instanceof = function(obj, type){};
+
+
 // Transform
 Processing.prototype.applyMatrix = function(n00, n01, n02, n03,
 																            n04, n05, n06, n07,
