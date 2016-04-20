@@ -24,7 +24,7 @@ var tests = [
   { path: "radialgradient.pde", tags: ["2D"] },
   { path: "wavegradient.pde", tags: ["2D"] },
   { path: "explode.pde", tags: ["3D"] },
-  //{ path: "multiple-particle-systems.pde", tags: ["2D"] },
+  //{ path: "multiple-particle-systems.pde", tags: ["2D"] }, /* fails because it uses dynamic addMethod */
   { path: "pattern.pde", tags: ["2D"] },
   { path: "pixelarray.pde", tags: ["2D"] },
   { path: "pulses.pde", tags: ["2D"] },
