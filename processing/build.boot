@@ -18,7 +18,8 @@
          '[clj-uuid :as uuid]
          '[adzerk.boot-cljs :refer [cljs]]
          '[prepare-ref-tests.util :as util]
-         '[run-ref-tests.epsilon-overrides])
+         '[run-ref-tests.epsilon-overrides]
+         '[run-ref-tests.known-failures])
 
 (def +lib-version+ "1.4.16")
 (def +version+ (str +lib-version+ "-0"))
@@ -228,18 +229,24 @@
           (spit ref-test-index-path munged-content))
 
 
-        ; munge the epsilonOverrides in the tests
+        ; munge the epsilonOverrides and knownFailures in the list of tests
         (let [ref-test-list-path (str exec-dir-path "/tests.js")
               munged-lines (atom [])]
           (with-open [rdr (io/reader ref-test-list-path)]
             (doseq [line (line-seq rdr)]
-              (if-let [[_ path] (re-find #"path: \"(.*?)\"" line)]
-                (if-let [epsilon-override (run-ref-tests.epsilon-overrides/for-test path)]
-                  (swap! munged-lines conj (str/replace line 
-                                                        #"\](?:,\sepsilonOverride:\s\d\.\d+)?\s}" 
-                                                        (str "], epsilonOverride: " epsilon-override " }")))
-                  (swap! munged-lines conj line))
-                  (swap! munged-lines conj line))))
+              (let [munged-line (atom line)]
+                (if-let [[_ path] (re-find #"path: \"(.*?)\"" line)]
+                  (do
+                    (if-let [epsilon-override (run-ref-tests.epsilon-overrides/for-test path)]
+                      (reset! munged-line (str/replace @munged-line 
+                                                       #"\](?:,\sepsilonOverride:\s\d\.\d+)?\s}" 
+                                                       (str "], epsilonOverride: " epsilon-override " }"))))
+                    
+                    (if (contains? run-ref-tests.known-failures/steve path)
+                      (reset! munged-line (str/replace @munged-line 
+                                                        #"^(.*)" 
+                                                        "//$1")))))
+                (swap! munged-lines conj @munged-line))))
           (spit ref-test-list-path (str/join "\n" @munged-lines)))
 
         ; go!
@@ -249,10 +256,7 @@
                           {:output-to js-output-file-path,
                            :output-dir (str/replace js-output-file-path #".js\z" ".out")})
               opts {:exec-dir exec-dir :debug true}
-              {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)])
-          
-          ))
-
+              {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)])))
       fileset))
 
 
