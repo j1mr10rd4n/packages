@@ -53,8 +53,6 @@
       (let [h3s (dom/getElementsByTagNameAndClass "h3" nil parentElement)]
         (if (= 3 (object/get h3s "length"))
           (do
-            (println "SUITE FINISHED!!")
-            ;(println (-> js/window (object/get "ref-tests-window") (object/get "document") (object/get "body") (object/get "outerHTML")))
             (println (test-suite-summary))
             ((object/get js/window "exit_runner") true))))))) 
 
