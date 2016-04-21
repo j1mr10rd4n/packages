@@ -1,6 +1,6 @@
- (ns prepare-ref-tests.doo-wrapper
+ (ns convert-ref-tests.doo-wrapper
  (:require
-  [prepare-ref-tests.convert-pde-to-js :as convert]
+  [convert-ref-tests.convert-pde-to-js :as convert]
   [doo.runner :as runner]))
 
 (do

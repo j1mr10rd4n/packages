@@ -1,4 +1,4 @@
-(ns prepare-ref-tests.util
+(ns convert-ref-tests.util
   (:require [clojure.string :as str :refer [join split]]))
 
 (defn serialize-to-ascii [s]

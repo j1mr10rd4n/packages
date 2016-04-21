@@ -17,7 +17,7 @@
          '[clojure.java.io :as io]
          '[clj-uuid :as uuid]
          '[adzerk.boot-cljs :refer [cljs]]
-         '[prepare-ref-tests.util :as util]
+         '[convert-ref-tests.util :as util]
          '[run-ref-tests.epsilon-overrides]
          '[run-ref-tests.known-failures])
 
@@ -77,9 +77,12 @@
            (boot/tmp-file)
            (.getPath)))
 
+(defonce convert-ref-test-edn-filename "convert_ref_tests/convert_pde")
+(defonce convert-ref-test-ns-filename "convert_ref_tests/convert_pde.js")
+
 (deftask convert-tests-pde-to-js []
   (boot/with-pre-wrap fileset
-    (if-let [compilation-output-path (find-compilation-output-path fileset "prepare_ref_tests/convert_pde.js")]
+    (if-let [compilation-output-path (find-compilation-output-path fileset convert-ref-test-ns-filename)]
       (let [compilation-output-dir (-> compilation-output-path io/file .getParentFile)
             tmp-main (boot/tmp-dir!)]
 
@@ -260,11 +263,11 @@
       fileset))
 
 
-(deftask doit-wrapped []
+(deftask test-externs []
   (merge-env! :source-paths #{"test"})
   (set-env! :resource-paths #{"deps-src/processing-js-1.4.16/test/ref/"})
   (comp
-    (cljs :ids #{"prepare_ref_tests/convert_pde"}
+    (cljs :ids #{convert-ref-test-edn-filename}
           :compiler-options (compiler-opts-for-convert))
     (convert-tests-pde-to-js)
     (prep-run-ref-test-scripts)

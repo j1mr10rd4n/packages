@@ -1,10 +1,10 @@
-(ns prepare-ref-tests.convert-pde-to-js
+(ns convert-ref-tests.convert-pde-to-js
   (:require [clojure.string :as str :refer [join replace split]]
             [goog.object :as object]
             [goog.dom :as dom]
             [goog.net.XhrIo]
             [processing-js :as p]
-            [prepare-ref-tests.util :as u]))
+            [convert-ref-tests.util :as u]))
 
 (enable-console-print!)
 
