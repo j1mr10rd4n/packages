@@ -3,11 +3,11 @@
  ;:resource-paths #{"resources"}
  :dependencies '[[cljsjs/boot-cljsjs "0.5.0"  :scope "test"]
                  [doo "0.1.7-SNAPSHOT" :scope "test"]
-                 [crisptrutski/boot-cljs-test "0.2.3-SNAPSHOT" :scope "test"]
+                 [crisptrutski/boot-cljs-test "0.2.2-SNAPSHOT" :scope "test"]
                  [org.clojure/clojurescript "1.7.228"]
                  [org.clojure/core.async "0.2.374"]
                  [danlentz/clj-uuid "0.1.6"]
-                 [adzerk/boot-cljs "1.7.228-2" :scope "test"]]) 
+                 [adzerk/boot-cljs "1.7.228-1" :scope "test"]]) 
 
 (require '[cljsjs.boot-cljsjs.packaging :refer :all]
          '[boot.core :as boot]
@@ -65,7 +65,6 @@
 
 (defn- compiler-opts-for-convert []
     {:optimizations :none
-     :verbose true
      :foreign-libs [{:file "deps-src/processing-js-1.4.16/processing.js" 
                      :provides ["processing-js"]}]})
 
@@ -93,7 +92,7 @@
               cljs (merge (compiler-opts-for-convert)
                           {:output-to compilation-output-path,
                            :output-dir (str/replace compilation-output-path #".js\z" ".out")})
-              opts {:exec-dir compilation-output-dir :debug true}
+              opts {:exec-dir compilation-output-dir}
               {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)]
 
           (let [ascii-serialized-tests (util/unmarshal-from-string out)
@@ -181,7 +180,6 @@
      :optimizations :advanced
      :foreign-libs foreign-libs
      :libs libs
-     :verbose true
      :externs ["resources/cljsjs/processing/common/processing.ext.js"]}))
 
 ; have to wrap cljs becuase the compiler-opts we want to pass won't be known
@@ -195,7 +193,6 @@
                                :compiler-options compiler-opts)
             fileset' (atom nil)
             dummy-handler (fn [compiled-fileset] (reset! fileset' compiled-fileset))]
-        (println "COMPILER OPTS:" compiler-opts)
         ((cljs-handler dummy-handler) fileset)
         (next-handler @fileset')))))
 
@@ -258,7 +255,7 @@
               cljs (merge (compiler-opts-run fileset)
                           {:output-to js-output-file-path,
                            :output-dir (str/replace js-output-file-path #".js\z" ".out")})
-              opts {:exec-dir exec-dir :debug true}
+              opts {:exec-dir exec-dir}
               {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)])))
       fileset))
 
