@@ -147,7 +147,7 @@
                 (boot/add-resource tmp-main) 
                 boot/commit!)))))))
 
-(defn add-run-ref-tests-ns! [fileset tmp-main suite-ns]
+(defn write-doo-wrapper [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
         out-file (doto (io/file tmp-main out-main) io/make-parents)
         ref-test-js-files-and-ids (fs-metadata fileset :ref-test-js-files-and-ids)
@@ -180,7 +180,7 @@
 (deftask prep-run-ref-test-scripts []
   (let [out-file "run-ref-tests.js"
         out-id (str/replace out-file #"\.js$" "") 
-        suite-ns 'ref-tests.run-tests
+        suite-ns 'run-ref-tests.doo-wrapper
         tmp-main (boot/tmp-dir!)]
     (boot/with-pre-wrap fileset
       (boot/empty-dir! tmp-main)
@@ -188,16 +188,16 @@
       (println (pr-str {:require [suite-ns]}))
       (spit (doto (io/file tmp-main (str out-id ".cljs.edn")) io/make-parents)
             (pr-str {:require [suite-ns]}))
-      (add-run-ref-tests-ns! fileset tmp-main suite-ns)
+      (write-doo-wrapper fileset tmp-main suite-ns)
       (-> fileset (boot/add-source tmp-main) boot/commit!))))
 
 
 (defn- compiler-opts-run [fileset]
   (let [foreign-libs [{:file "test-paths-and-ids.js"
                        :provides ["test-paths-and-vars"]}]
-        libs (mapv #(str "converted/" (:test-id %) ".js" )
+        libs (mapv #(converted-ref-test-filename (:test-id %))
                    (fs-metadata fileset :ref-test-js-files-and-ids))]
-    {:main "ref-tests.run-tests"
+    {:main "run-ref-tests.doo-wrapper"
      :optimizations :advanced
      :foreign-libs foreign-libs
      :libs libs
