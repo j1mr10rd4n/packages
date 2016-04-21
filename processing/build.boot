@@ -79,6 +79,30 @@
 (defonce convert-ref-test-edn-filename "convert_ref_tests/convert_pde")
 (defonce convert-ref-test-ns-filename "convert_ref_tests/convert_pde.js")
 
+(defn- converted-ref-test-filename [test-id]
+  (str "converted/" test-id ".js"))
+
+(defn- converted-ref-test-function-name [test-id]
+  (str test-id "_f"))
+
+(defn- converted-ref-test-fq-name [test-id]
+  (str "converted." test-id))
+
+(defn- converted-ref-test-ns-and-function [test-id]
+  (str (converted-ref-test-fq-name test-id) "." (converted-ref-test-function-name test-id)))
+
+(defn- goog-provide-string [test-id]
+  (str "goog.provide('" (converted-ref-test-fq-name test-id) "');"))
+
+(defn- converted-ref-test-ns [test]
+  (converted-ref-test-fq-name (:test-id test)))
+
+(defn- converted-ref-test-global-var [test]
+  (converted-ref-test-function-name (:test-id test)))
+
+(defn- converted-ref-test-function [test]
+  (str (converted-ref-test-ns test) "/" (converted-ref-test-global-var test)))
+
 (deftask convert-tests-pde-to-js []
   (boot/with-pre-wrap fileset
     (if-let [compilation-output-path (find-compilation-output-path fileset convert-ref-test-ns-filename)]
@@ -103,10 +127,12 @@
                                ascii-serialized-tests)]
 
             (doseq [{:keys [test-name test-js test-id]} converted-tests]
-              (let [js-file (doto (io/file tmp-main (str "converted/" test-id ".js")) io/make-parents)
-                    my-fn (str/replace test-js #"(?s)\((function\(\$p\)\s\{.*\})\)" (str "converted." test-id "." test-id "_f = $1"))]
+              (let [js-file (doto (io/file tmp-main (converted-ref-test-filename test-id)) io/make-parents)
+                    my-fn (str/replace test-js 
+                                       #"(?s)\((function\(\$p\)\s\{.*\})\)" 
+                                       (str (converted-ref-test-ns-and-function test-id) " = $1"))]
                 (spit js-file
-                      (str/join "\n" [(str "goog.provide('converted." test-id "');") my-fn]))))
+                      (str/join "\n" [(goog-provide-string test-id) my-fn]))))
 
 
             ; write a js dictionary of test var ids against paths
@@ -121,7 +147,6 @@
                 (boot/add-resource tmp-main) 
                 boot/commit!)))))))
 
-
 (defn add-run-ref-tests-ns! [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
         out-file (doto (io/file tmp-main out-main) io/make-parents)
@@ -131,16 +156,12 @@
                             [goog.object :as ~'object]
                             [doo.runner :as ~'runner]
                             [~'test-paths-and-vars]
-                  ~@(mapv #(vector (symbol (str "converted." (:test-id %)))) 
-                          ref-test-js-files-and-ids)
-                  ))
+                  ~@(mapv #(vector (symbol (converted-ref-test-ns %))) 
+                          ref-test-js-files-and-ids)))
         run-exp `(do 
-                     ~@(map #(let [vr (symbol (:test-id %))
-                                   pvr (symbol (str "converted." vr))
-                                   f (str vr "_f")
-                                   x (symbol (str pvr "/" f))]
-                              `(object/set js/window ~f ~x) 
-                              )
+                     ~@(map #(let [f (converted-ref-test-global-var %)
+                                   x (symbol (converted-ref-test-function %))]
+                              `(object/set js/window ~f ~x))
                             ref-test-js-files-and-ids)
                      ; need to export exit fn so advanced compilation retains it
                      ~'(object/set js/window "exit_runner" runner/exit!) 
