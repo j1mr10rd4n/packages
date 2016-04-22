@@ -79,12 +79,12 @@
   ([fileset] 
     (fs-metadata fileset identity)))
 
-(defn- copy-dir-contents [ref-tests-dir-path output-dir-path]
+(defn- copy-dir-contents [src-path output-dir-path]
   (doseq [f (filter #(not (= (.getPath %) 
-                             ref-tests-dir-path)) 
-                    (file-seq (java.io.File. ref-tests-dir-path)))]
+                             src-path)) 
+                    (file-seq (java.io.File. src-path)))]
     (let [source-path (.getPath f)
-          dest-path (str/replace source-path (re-pattern ref-tests-dir-path) output-dir-path)
+          dest-path (str/replace source-path (re-pattern src-path) output-dir-path)
           dest-file (io/file dest-path)]
       (if (.isDirectory f)
         (.mkdir dest-file)
