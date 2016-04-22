@@ -144,35 +144,34 @@
                           {:output-to compilation-output-path,
                            :output-dir (str/replace compilation-output-path #".js\z" ".out")})
               opts {:exec-dir compilation-output-dir}
-              {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts)]
+              {:keys [out exit] :as result} (doo.core/run-script js-env cljs opts) 
+              ascii-serialized-tests (util/unmarshal-from-string out)
+              converted-tests (map (fn [{:keys [test-name processing-js-code]}] 
+                                     {:test-name test-name 
+                                      :test-js (util/deserialize-from-ascii processing-js-code)
+                                      :test-id (str "var" ((str/split (str (uuid/v1)) #"-") 0))})
+                                   ascii-serialized-tests)]
 
-          (let [ascii-serialized-tests (util/unmarshal-from-string out)
-                converted-tests (map (fn [{:keys [test-name processing-js-code]}] 
-                                      {:test-name test-name 
-                                       :test-js (util/deserialize-from-ascii processing-js-code)
-                                       :test-id (str "var" ((str/split (str (uuid/v1)) #"-") 0))})
-                               ascii-serialized-tests)]
-
-            (doseq [{:keys [test-name test-js test-id]} converted-tests]
-              (let [js-file (doto (io/file tmp-main (converted-ref-test-filename test-id)) io/make-parents)
-                    my-fn (str/replace test-js 
-                                       #"(?s)\((function\(\$p\)\s\{.*\})\)" 
-                                       (str (converted-ref-test-ns-and-function test-id) " = $1"))]
-                (spit js-file
-                      (str/join "\n" [(goog-provide-string test-id) my-fn]))))
+          (doseq [{:keys [test-name test-js test-id]} converted-tests]
+            (let [js-file (doto (io/file tmp-main (converted-ref-test-filename test-id)) io/make-parents)
+                  my-fn (str/replace test-js 
+                                     #"(?s)\((function\(\$p\)\s\{.*\})\)" 
+                                     (str (converted-ref-test-ns-and-function test-id) " = $1"))]
+              (spit js-file
+                    (str/join "\n" [(goog-provide-string test-id) my-fn]))))
 
 
             ; write a js dictionary of test var ids against paths
-            (let [test-paths-and-ids (str/join ", " 
-                                               (map (fn [{:keys [test-name test-id]}] 
-                                                      (str "\"" test-name  "\": " (str "'" test-id "'")))
-                                                    converted-tests))]
-              (spit (io/file tmp-main "test-paths-and-ids.js")
-                    (str "var test_paths_and_ids = {" test-paths-and-ids "};")))
+          (let [test-paths-and-ids (str/join ", " 
+                                             (map (fn [{:keys [test-name test-id]}] 
+                                                  (str "\"" test-name  "\": " (str "'" test-id "'")))
+                                                  converted-tests))]
+            (spit (io/file tmp-main "test-paths-and-ids.js")
+                  (str "var test_paths_and_ids = {" test-paths-and-ids "};")))
 
-            (-> (fs-metadata fileset :ref-test-js-files-and-ids converted-tests)
-                (boot/add-resource tmp-main) 
-                boot/commit!)))))))
+          (-> (fs-metadata fileset :ref-test-js-files-and-ids converted-tests)
+              (boot/add-resource tmp-main) 
+              boot/commit!))))))
 
 (defn write-doo-wrapper [fileset tmp-main suite-ns]
   (let [out-main (cljs-test-utils/ns->cljs-path suite-ns)
