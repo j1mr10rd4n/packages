@@ -194,11 +194,6 @@
                      ~'(object/set js/window "exit_runner" runner/exit!) 
                      (~'runner/set-exit-point! (~'launcher/exit))
                      (~'runner/set-entry-point! (~'launcher/entry)))]
-    (info "Writing %s...\n " out-main)
-    (println 
-        (->> [ns-spec run-exp]
-             (map #(with-out-str (clojure.pprint/pprint %)))
-             (str/join "\n" )))
     (spit out-file 
         (->> [ns-spec run-exp]
              (map #(with-out-str (clojure.pprint/pprint %)))
@@ -211,8 +206,6 @@
         tmp-main (boot/tmp-dir!)]
     (boot/with-pre-wrap fileset
       (boot/empty-dir! tmp-main)
-      (info "Writing %s...\n" (str out-id ".cljs.edn"))
-      (println (pr-str {:require [suite-ns]}))
       (spit (doto (io/file tmp-main (str out-id ".cljs.edn")) io/make-parents)
             (pr-str {:require [suite-ns]}))
       (write-doo-wrapper fileset tmp-main suite-ns)
