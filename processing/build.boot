@@ -1,13 +1,14 @@
 (set-env!
  :source-paths #{"test"}
- ;:resource-paths #{"resources"}
+ :resource-paths #{"resources"}
  :dependencies '[[cljsjs/boot-cljsjs "0.5.0"  :scope "test"]
                  [doo "0.1.7-SNAPSHOT" :scope "test"]
                  [crisptrutski/boot-cljs-test "0.2.2-SNAPSHOT" :scope "test"]
                  [org.clojure/clojurescript "1.7.228"]
-                 [org.clojure/core.async "0.2.374"]
-                 [danlentz/clj-uuid "0.1.6"]
-                 [adzerk/boot-cljs "1.7.228-1" :scope "test"]]) 
+                 [org.clojure/core.async "0.2.374" :scope "test"]
+                 [danlentz/clj-uuid "0.1.6" :scope "test"]
+                 [adzerk/boot-cljs "1.7.228-1"]
+                 [me.raynes/fs "1.4.6" :scope "test"]]) 
 
 (require '[cljsjs.boot-cljsjs.packaging :refer :all]
          '[boot.core :as boot]
@@ -17,6 +18,7 @@
          '[clojure.java.io :as io]
          '[clj-uuid :as uuid]
          '[adzerk.boot-cljs :refer [cljs]]
+         '[me.raynes.fs :as fs] 
          '[convert-ref-tests.util :as util]
          '[run-ref-tests.epsilon-overrides]
          '[run-ref-tests.known-failures])
@@ -31,16 +33,41 @@
         :url         "http://processingjs.org"
         :scm         {:url "https://github.com/cljsjs/packages"}
         :license     {"MIT" "http://opensource.org/licenses/MIT"}})
- 
+
+
+(defonce download-cache-path "download-cache")
+(defonce processing-filename (str "processing-js-" +lib-version+))
+(defonce processing-file-cache-path (str download-cache-path "/" processing-filename))
+
+(deftask download-and-cache []
+  ; avoid unnecessary repeat downloads
+  (comp
+    (boot/with-pass-thru fileset
+      (if (not (fs/exists? processing-file-cache-path))
+        (((download :url      (str "https://github.com/processing-js/processing-js/archive/v" +lib-version+ ".zip")
+                    :checksum "62815eedfe60c6f44672795972702482"
+                    :unzip    true)
+          (fn [my-fileset]
+            (let [download-dir-path (->> my-fileset
+                                         boot/input-files
+                                         (boot/by-re [(re-pattern (str "^" processing-filename))])
+                                         first
+                                         :dir
+                                         .getPath)
+                  downloaded-path (str download-dir-path "/" processing-filename)]
+               (fs/copy-dir (io/file downloaded-path) (io/file processing-file-cache-path))))) 
+         fileset)))
+    (boot/with-pre-wrap fileset 
+      (let [tmp-dir (boot/tmp-dir!)]
+        (fs/copy-dir (io/file processing-file-cache-path) tmp-dir)
+        (boot/commit! (boot/add-resource fileset tmp-dir))))))
+
 (deftask package []
   (comp
-   (download :url      (str "https://github.com/processing-js/processing-js/archive/v" +lib-version+ ".zip")
-             :checksum "62815eedfe60c6f44672795972702482"
-             :unzip    true)
-   (sift :move {#"^processing-js-([\d\.]*)/processing\.js"      "cljsjs/processing/development/processing.inc.js"
+    (download-and-cache)
+    (sift :move {#"^processing-js-([\d\.]*)/processing\.js"      "cljsjs/processing/development/processing.inc.js"
                 #"^processing-js-([\d\.]*)/processing\.min\.js" "cljsjs/processing/production/processing.min.inc.js"})
-   (sift :include #{#"^cljsjs"})
-   (deps-cljs :name "cljsjs.processing")))
+    (sift :include #{#"^cljsjs"})))
 
 (defn fs-metadata 
   ([fileset key value]
@@ -65,7 +92,7 @@
 
 (defn- compiler-opts-for-convert []
     {:optimizations :none
-     :foreign-libs [{:file "deps-src/processing-js-1.4.16/processing.js" 
+     :foreign-libs [{:file (str processing-filename "/" "processing.js")
                      :provides ["processing-js"]}]})
 
 (defn- find-compilation-output-path [fileset namespace]
@@ -107,10 +134,10 @@
   (boot/with-pre-wrap fileset
     (if-let [compilation-output-path (find-compilation-output-path fileset convert-ref-test-ns-filename)]
       (let [compilation-output-dir (-> compilation-output-path io/file .getParentFile)
+            exec-dir-path (-> compilation-output-dir io/file .getParentFile .getPath)
             tmp-main (boot/tmp-dir!)]
 
-        ; copy the ref test index and resources into the folder that the phantom page can find
-        (copy-dir-contents "deps-src/processing-js-1.4.16/test/ref" (-> compilation-output-dir .getPath))
+        (copy-dir-contents (str exec-dir-path "/" processing-filename "/test/ref") (.getPath compilation-output-dir))
 
         (let [js-env :phantom
               cljs (merge (compiler-opts-for-convert)
@@ -206,7 +233,6 @@
 ; have to wrap cljs becuase the compiler-opts we want to pass won't be known
 ; until after the previous tasks have run
 (deftask wrap-cljs-run []
-  (merge-env! :source-paths #{"src" "test"})
   (fn middleware [next-handler]
     (fn handler [fileset]
       (let [compiler-opts (compiler-opts-run fileset)
@@ -231,14 +257,13 @@
   (boot/with-pre-wrap fileset
     (if-let [js-output-file-path (find-compilation-output-path fileset "run-ref-tests.js")]
       (let [exec-dir (.getParentFile (java.io.File. js-output-file-path))
-            exec-dir-path (.getPath exec-dir)
-            ref-tests-dir-path "deps-src/processing-js-1.4.16/test/ref"
-            ref-tests-dir (java.io.File. ref-tests-dir-path)]
+            exec-dir-path (.getPath exec-dir)]
+
         ; copy the ref test index and resources into the folder that the phantom page can find
-        (copy-dir-contents "deps-src/processing-js-1.4.16/test/ref" exec-dir-path)
+        (copy-dir-contents (str exec-dir-path "/" processing-filename "/test/ref") exec-dir-path)
 
         ; copy the processing js file - this is kept as an external library
-        (io/copy (io/file "deps-src/processing-js-1.4.16/processing.min.js") (io/file (str exec-dir-path "/processing.min.js")))
+        (io/copy (boot/tmp-file (first (boot/by-re [#"processing\.min\.js$"] (boot/input-files fileset)))) (io/file (str exec-dir-path "/processing.min.js")))
 
         ; munge the processing link in index.html
         ; add function that swaps test source from pde for the javascript-converted version
@@ -282,9 +307,8 @@
 
 
 (deftask test-externs []
-  (merge-env! :source-paths #{"test"})
-  (set-env! :resource-paths #{"deps-src/processing-js-1.4.16/test/ref/"})
   (comp
+    (download-and-cache)
     (cljs :ids #{convert-ref-test-edn-filename}
           :compiler-options (compiler-opts-for-convert))
     (convert-tests-pde-to-js)
